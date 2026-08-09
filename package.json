@@ -2,8 +2,9 @@
   "name": "taxischild",
   "private": true,
   "version": "1.0.0",
-  "engines": {
-    "node": "18.x"
+ "engines": {
+  "node": "24.x"
+},
   },
   "type": "module",
   "description": "TaxiSchild – PWA zur Verwaltung von Taxifahrten, Fahrern und Fuhrpark als digitaler Ersatz für das Papier-Fahrtenbuch",
