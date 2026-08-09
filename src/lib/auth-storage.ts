@@ -1,7 +1,29 @@
+export type AccountRole = "owner" | "driver";
+
+export type CompanyVehicle = {
+  id: string;
+  label: string;
+  registration: string;
+  notes: string;
+};
+
+export type CompanyDriver = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  active: boolean;
+};
+
 export type AccountProfile = {
   companyName: string;
   vehicleNumber: string;
   driverName: string;
+  companyId: string;
+  role: AccountRole;
+  inviteCode: string;
+  vehicles: CompanyVehicle[];
+  drivers: CompanyDriver[];
 };
 
 export type UserAccount = {
@@ -17,6 +39,11 @@ type AuthSession = {
   companyName: string;
   vehicleNumber: string;
   driverName: string;
+  companyId: string;
+  role: AccountRole;
+  inviteCode: string;
+  vehicles: CompanyVehicle[];
+  drivers: CompanyDriver[];
   createdAt: number;
 };
 
@@ -41,6 +68,33 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function createId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createInviteCode(): string {
+  return `TX-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
+function createVehicle(registration: string): CompanyVehicle {
+  return {
+    id: createId("vehicle"),
+    label: registration || "Fahrzeug 1",
+    registration: registration || "",
+    notes: "",
+  };
+}
+
+function createDriver(name: string): CompanyDriver {
+  return {
+    id: createId("driver"),
+    name: name || "Hauptfahrer",
+    email: "",
+    phone: "",
+    active: true,
+  };
+}
+
 export function getAllUsers(): UserAccount[] {
   return readStorage<UserAccount[]>(USERS_KEY, []);
 }
@@ -52,18 +106,28 @@ export function getActiveUser(): UserAccount | null {
   return users.find((user) => user.id === session.userId) ?? null;
 }
 
+export function getCompanyUsers(companyId?: string): UserAccount[] {
+  const scope = companyId ?? getActiveUser()?.companyId;
+  if (!scope) return [];
+  return getAllUsers().filter((user) => user.companyId === scope);
+}
+
 export function registerAccount(input: {
   email: string;
   password: string;
   companyName?: string;
   vehicleNumber?: string;
   driverName?: string;
+  inviteCode?: string;
+  role?: AccountRole;
 }): { ok: boolean; user?: UserAccount; error?: string } {
   const email = normalizeEmail(input.email);
   const password = input.password.trim();
   const companyName = (input.companyName ?? "").trim();
   const vehicleNumber = (input.vehicleNumber ?? "").trim();
   const driverName = (input.driverName ?? "").trim();
+  const inviteCodeInput = (input.inviteCode ?? "").trim();
+  const role = input.role === "driver" ? "driver" : "owner";
 
   if (!email || !password) {
     return { ok: false, error: "E-Mail und Passwort sind erforderlich." };
@@ -74,14 +138,69 @@ export function registerAccount(input: {
     return { ok: false, error: "Diese E-Mail ist bereits registriert." };
   }
 
+  if (role === "driver") {
+    const owner = users.find(
+      (candidate) => candidate.role === "owner" && candidate.inviteCode.toLowerCase() === inviteCodeInput.toLowerCase()
+    );
+
+    if (!owner) {
+      return { ok: false, error: "Einladungscode ist ungültig oder nicht vorhanden." };
+    }
+
+    const user: UserAccount = {
+      id: createId("tenant"),
+      email,
+      password,
+      createdAt: Date.now(),
+      companyName: owner.companyName,
+      vehicleNumber: owner.vehicleNumber,
+      driverName: driverName || owner.driverName,
+      companyId: owner.companyId,
+      role: "driver",
+      inviteCode: owner.inviteCode,
+      vehicles: owner.vehicles,
+      drivers: owner.drivers,
+    };
+
+    const nextUsers = [...users, user];
+    const nextOwnerDrivers = [...owner.drivers, createDriver(driverName || email)];
+    const nextUsersWithOwner = nextUsers.map((candidate) =>
+      candidate.id === owner.id ? { ...candidate, drivers: nextOwnerDrivers } : candidate
+    );
+
+    writeStorage(USERS_KEY, nextUsersWithOwner);
+    writeStorage(SESSION_KEY, {
+      userId: user.id,
+      email: user.email,
+      companyName: user.companyName,
+      vehicleNumber: user.vehicleNumber,
+      driverName: user.driverName,
+      companyId: user.companyId,
+      role: user.role,
+      inviteCode: user.inviteCode,
+      vehicles: user.vehicles,
+      drivers: user.drivers,
+      createdAt: user.createdAt,
+    });
+
+    return { ok: true, user };
+  }
+
+  const companyId = createId("company");
+  const inviteCode = createInviteCode();
   const user: UserAccount = {
-    id: `tenant_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: createId("tenant"),
     email,
     password,
-    companyName,
-    vehicleNumber,
-    driverName,
     createdAt: Date.now(),
+    companyName: companyName || "TaxiSchild Betrieb",
+    vehicleNumber,
+    driverName: driverName || companyName || "Hauptfahrer",
+    companyId,
+    role: "owner",
+    inviteCode,
+    vehicles: vehicleNumber ? [createVehicle(vehicleNumber)] : [],
+    drivers: driverName || companyName ? [createDriver(driverName || companyName || "Hauptfahrer")] : [],
   };
 
   const nextUsers = [...users, user];
@@ -92,6 +211,11 @@ export function registerAccount(input: {
     companyName: user.companyName,
     vehicleNumber: user.vehicleNumber,
     driverName: user.driverName,
+    companyId: user.companyId,
+    role: user.role,
+    inviteCode: user.inviteCode,
+    vehicles: user.vehicles,
+    drivers: user.drivers,
     createdAt: user.createdAt,
   });
 
@@ -117,13 +241,18 @@ export function signIn(input: { email: string; password: string }): { ok: boolea
     companyName: user.companyName,
     vehicleNumber: user.vehicleNumber,
     driverName: user.driverName,
+    companyId: user.companyId,
+    role: user.role,
+    inviteCode: user.inviteCode,
+    vehicles: user.vehicles,
+    drivers: user.drivers,
     createdAt: user.createdAt,
   });
 
   return { ok: true, user };
 }
 
-export function updateUserProfile(userId: string, profile: AccountProfile) {
+export function updateUserProfile(userId: string, profile: Omit<AccountProfile, "companyId" | "role" | "inviteCode" | "vehicles" | "drivers">) {
   const users = getAllUsers();
   const nextUsers = users.map((user) => (user.id === userId ? { ...user, ...profile } : user));
   writeStorage(USERS_KEY, nextUsers);
@@ -143,5 +272,5 @@ export function signOut() {
 
 export function getTenantStorageScope(tenantId?: string): string {
   const activeUser = getActiveUser();
-  return tenantId ?? activeUser?.id ?? "default";
+  return tenantId ?? activeUser?.companyId ?? activeUser?.id ?? "default";
 }

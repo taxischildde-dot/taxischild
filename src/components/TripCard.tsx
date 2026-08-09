@@ -16,12 +16,16 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
   const isFinal = trip.status === "erledigt" || trip.status === "storniert";
 
   const advanceStatus = () => {
-    if (trip.status === "geplant") onUpdate({ ...trip, status: "aktiv" });
-    else if (trip.status === "aktiv") onUpdate({ ...trip, status: "erledigt" });
+    const stamp = new Date().toTimeString().slice(0, 5);
+    if (trip.status === "geplant") {
+      onUpdate({ ...trip, status: "aktiv", actualStartTime: trip.actualStartTime || stamp });
+    } else if (trip.status === "aktiv") {
+      onUpdate({ ...trip, status: "erledigt", actualEndTime: trip.actualEndTime || stamp });
+    }
   };
 
   const confirmCancel = () => {
-    onUpdate({ ...trip, status: "storniert", cancelReason: reason });
+    onUpdate({ ...trip, status: "storniert", cancelReason: reason, actualEndTime: trip.actualEndTime || new Date().toTimeString().slice(0, 5) });
     setCancelPanelOpen(false);
   };
 
@@ -55,9 +59,12 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
       <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted">
         {trip.bookingTime && <span className="rounded-full border border-line px-2.5 py-1">📞 {trip.bookingTime}</span>}
         {trip.price && <span className="rounded-full border border-line px-2.5 py-1">💶 {trip.price}</span>}
+        {trip.vehicleLabel && <span className="rounded-full border border-line px-2.5 py-1">🚖 {trip.vehicleLabel}</span>}
+        {trip.driverName && <span className="rounded-full border border-line px-2.5 py-1">👨‍✈️ {trip.driverName}</span>}
+        {trip.passengerCount != null && <span className="rounded-full border border-line px-2.5 py-1">👥 {trip.passengerCount}</span>}
       </div>
 
-      {(trip.wheelchair || trip.prebooked || trip.notes) && (
+      {(trip.wheelchair || trip.prebooked || trip.notes || trip.actualStartTime || trip.actualEndTime || trip.serviceType) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {trip.wheelchair && (
             <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[11px] text-muted">
@@ -67,6 +74,21 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
           {trip.prebooked && (
             <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[11px] text-muted">
               📅 Vorbestellung
+            </span>
+          )}
+          {trip.serviceType && (
+            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[11px] text-muted">
+              {trip.serviceType}
+            </span>
+          )}
+          {trip.actualStartTime && (
+            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[11px] text-muted">
+              Start {trip.actualStartTime}
+            </span>
+          )}
+          {trip.actualEndTime && (
+            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[11px] text-muted">
+              Ende {trip.actualEndTime}
             </span>
           )}
           {trip.notes && (

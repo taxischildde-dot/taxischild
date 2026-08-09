@@ -19,12 +19,15 @@ export default function DashboardPage() {
       return;
     }
     setActiveUser(user);
-    setSetup(loadSetup(user.id));
+    setSetup(loadSetup(user.companyId));
     setChecked(true);
   }, [navigate]);
 
   const todaysTrips = useMemo(() => loadTrips().filter((trip) => trip.date === todayKey()), []);
   const reportsCount = useMemo(() => loadReports().length, []);
+  const vehicleCount = setup.vehicles.length;
+  const driverCount = setup.drivers.length;
+  const activeTrips = todaysTrips.filter((trip) => trip.status === "aktiv").length;
 
   if (!checked) {
     return (
@@ -44,10 +47,13 @@ export default function DashboardPage() {
           </h1>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-cream">
-              {setup.vehicleNumber || activeUser?.vehicleNumber || "—"}
+              {vehicleCount} Fahrzeuge
             </span>
             <span className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-cream">
-              {setup.driverName || activeUser?.driverName || "—"}
+              {driverCount} Fahrer
+            </span>
+            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-cream">
+              {setup.inviteCode || activeUser?.inviteCode || "—"}
             </span>
           </div>
         </div>
@@ -108,6 +114,10 @@ export default function DashboardPage() {
             <span className="font-body text-sm text-cream">Fahrten</span>
             <span className="font-mono text-sm text-amber">{todaysTrips.length}</span>
           </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-body text-sm text-cream">Aktive Fahrten</span>
+            <span className="font-mono text-sm text-amber">{activeTrips}</span>
+          </div>
         </div>
 
         <div className="rounded-lg border border-line bg-panel px-4 py-3.5">
@@ -115,6 +125,10 @@ export default function DashboardPage() {
           <div className="mt-1 flex items-baseline justify-between">
             <span className="font-body text-sm text-cream">Gespeicherte Tage</span>
             <span className="font-mono text-sm text-amber">{reportsCount}</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-body text-sm text-cream">Fahrzeugflotte</span>
+            <span className="font-mono text-sm text-amber">{vehicleCount} / {driverCount}</span>
           </div>
         </div>
 

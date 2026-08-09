@@ -54,6 +54,23 @@ export default function ReportsPage() {
       .sort((left, right) => left.pickupTime.localeCompare(right.pickupTime));
   }, [weekDates]);
 
+  const weekSummary = useMemo(() => {
+    const passengerCount = weekTrips.reduce((sum, trip) => sum + (trip.passengerCount ?? 0), 0);
+    const priceTotal = weekTrips.reduce((sum, trip) => {
+      const cleaned = (trip.price ?? "")
+        .replace(/[^0-9,.-]/g, "")
+        .replace(".", "")
+        .replace(",", ".");
+      const parsed = Number.parseFloat(cleaned);
+      return sum + (Number.isNaN(parsed) ? 0 : parsed);
+    }, 0);
+
+    return {
+      passengerCount,
+      priceTotal,
+    };
+  }, [weekTrips]);
+
   const updateReport = (updated: DailyReport) => {
     setReports((prev) => upsertReport(prev, updated));
   };
@@ -69,18 +86,21 @@ export default function ReportsPage() {
     doc.text(`Fahrer: ${setup.driverName || "—"}`, 40, 74);
     doc.text(`Fahrzeug: ${setup.vehicleNumber || "—"}`, 40, 92);
     doc.text(`Berichtswoche: ${formatDateCompact(weekDates[0])} – ${formatDateCompact(weekDates[6])}`, 40, 110);
+    doc.text(`Fahrten: ${weekTrips.length} · Passagiere: ${weekSummary.passengerCount} · Umsatz: ${weekSummary.priceTotal.toFixed(2).replace(".", ",")} €`, 40, 128);
 
     autoTable(doc, {
-      head: [["Datum", "Abholzeit", "Kunde", "Ziel", "Vorbestellung", "Preis"]],
+      head: [["Datum", "Abholzeit", "Kunde", "Ziel", "Fahrer", "Fahrzeug", "Passagiere", "Preis"]],
       body: weekTrips.map((trip) => [
         formatDateShort(trip.date),
         trip.pickupTime,
         trip.customerName,
         trip.destination,
-        trip.prebooked ? "Ja" : "Nein",
+        trip.driverName || "—",
+        trip.vehicleLabel || "—",
+        trip.passengerCount?.toString() ?? "—",
         trip.price || "—",
       ]),
-      startY: 130,
+      startY: 150,
       styles: { fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: [22, 22, 22], textColor: 255 },
       alternateRowStyles: { fillColor: [248, 248, 248] },
@@ -175,6 +195,23 @@ export default function ReportsPage() {
             Berichtswoche: {formatDateCompact(weekStart)} – {formatDateCompact(weekEnd)}
           </p>
           <div className="mt-3 border-t-2 border-asphalt" />
+        </div>
+
+        <div className="mb-4 rounded-lg border border-line bg-panel p-4 print:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Wochensummary</p>
+              <p className="font-display text-lg font-700 uppercase tracking-wide text-cream">{weekTrips.length} Fahrten</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-[11px] uppercase tracking-signage text-muted">Passagiere</p>
+              <p className="font-mono text-sm text-amber">{weekSummary.passengerCount}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+            <p className="font-mono text-[11px] uppercase tracking-signage text-muted">Umsatz</p>
+            <p className="font-mono text-sm text-amber">{weekSummary.priceTotal.toFixed(2).replace(".", ",")} €</p>
+          </div>
         </div>
 
         <div className="rounded-lg border border-line bg-panel p-4 print:border-0 print:bg-white print:p-0">

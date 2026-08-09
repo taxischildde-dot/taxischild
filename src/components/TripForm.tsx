@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { loadSetup, type TaxiSetup } from "../lib/setup-storage";
 import { Trip, createTripId, todayKey } from "../lib/trips-storage";
 
 type TripFormProps = {
@@ -18,6 +19,10 @@ type TripFormState = {
   prebooked: boolean;
   price: string;
   notes: string;
+  vehicleId: string;
+  driverId: string;
+  passengerCount: string;
+  serviceType: string;
 };
 
 const emptyForm: TripFormState = {
@@ -32,10 +37,22 @@ const emptyForm: TripFormState = {
   prebooked: true,
   price: "",
   notes: "",
+  vehicleId: "",
+  driverId: "",
+  passengerCount: "",
+  serviceType: "standard",
 };
 
 export default function TripForm({ onAdd, onClose }: TripFormProps) {
   const [form, setForm] = useState<TripFormState>(emptyForm);
+  const [vehicles, setVehicles] = useState<TaxiSetup["vehicles"]>([]);
+  const [drivers, setDrivers] = useState<TaxiSetup["drivers"]>([]);
+
+  useEffect(() => {
+    const setup = loadSetup();
+    setVehicles(setup.vehicles);
+    setDrivers(setup.drivers);
+  }, []);
 
   const set = <K extends keyof TripFormState>(key: K, value: TripFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -48,6 +65,8 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
     event.preventDefault();
     if (!canSubmit) return;
 
+    const selectedVehicle = vehicles.find((vehicle) => vehicle.id === form.vehicleId);
+    const selectedDriver = drivers.find((driver) => driver.id === form.driverId);
     const trip: Trip = {
       id: createTripId(),
       date: todayKey(),
@@ -64,6 +83,12 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
       notes: form.notes.trim(),
       status: "geplant",
       createdAt: Date.now(),
+      vehicleId: form.vehicleId || undefined,
+      driverId: form.driverId || undefined,
+      vehicleLabel: selectedVehicle?.registration || selectedVehicle?.label || "",
+      driverName: selectedDriver?.name || "",
+      passengerCount: form.passengerCount ? Number(form.passengerCount) : undefined,
+      serviceType: form.serviceType || "standard",
     };
 
     onAdd(trip);
@@ -189,6 +214,78 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
             onChange={(event) => set("price", event.target.value)}
             className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
           />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="vehicleId" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Fahrzeug
+          </label>
+          <select
+            id="vehicleId"
+            value={form.vehicleId}
+            onChange={(event) => set("vehicleId", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
+          >
+            <option value="">Nicht zugeordnet</option>
+            {vehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>
+                {vehicle.registration || vehicle.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="driverId" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Fahrer
+          </label>
+          <select
+            id="driverId"
+            value={form.driverId}
+            onChange={(event) => set("driverId", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
+          >
+            <option value="">Nicht zugeordnet</option>
+            {drivers.map((driver) => (
+              <option key={driver.id} value={driver.id}>
+                {driver.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="passengerCount" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Fahrgäste
+          </label>
+          <input
+            id="passengerCount"
+            type="number"
+            min={1}
+            placeholder="1"
+            value={form.passengerCount}
+            onChange={(event) => set("passengerCount", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="serviceType" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Service
+          </label>
+          <select
+            id="serviceType"
+            value={form.serviceType}
+            onChange={(event) => set("serviceType", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
+          >
+            <option value="standard">Standard</option>
+            <option value="airport">Flughafen</option>
+            <option value="medical">Medizinisch</option>
+            <option value="wheelchair">Rollstuhl</option>
+          </select>
         </div>
       </div>
 
