@@ -21,6 +21,14 @@ export type Trip = {
   status: TripStatus;
   cancelReason?: CancelReason;
   createdAt: number;
+  vehicleId?: string;
+  driverId?: string;
+  vehicleLabel?: string;
+  driverName?: string;
+  passengerCount?: number;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  serviceType?: string;
 };
 
 export const TRIPS_STORAGE_KEY = "taxiFlotte.trips";

@@ -15,6 +15,7 @@ export default function AuthPage() {
   const [companyName, setCompanyName] = useState("");
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [driverName, setDriverName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,6 +47,8 @@ export default function AuthPage() {
       companyName,
       vehicleNumber,
       driverName,
+      inviteCode,
+      role: inviteCode.trim() ? "driver" : "owner",
     });
 
     setSubmitting(false);
@@ -144,6 +147,13 @@ export default function AuthPage() {
                   value={driverName}
                   onChange={setDriverName}
                   autoComplete="name"
+                />
+                <FormField
+                  id="inviteCode"
+                  label="Einladungscode (nur für Fahrer)"
+                  placeholder="TX-ABC123"
+                  value={inviteCode}
+                  onChange={setInviteCode}
                 />
               </>
             )}
