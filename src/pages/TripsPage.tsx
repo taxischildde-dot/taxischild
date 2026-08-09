@@ -34,27 +34,29 @@ export default function TripsPage() {
   const todaysTrips = useMemo(
     () =>
       trips
-        .filter((t) => t.date === todayKey())
-        .sort((a, b) => a.pickupTime.localeCompare(b.pickupTime)),
+        .filter((trip) => trip.date === todayKey())
+        .sort((left, right) => left.pickupTime.localeCompare(right.pickupTime)),
     [trips]
   );
 
   const visibleTrips = useMemo(
-    () => (filter === "alle" ? todaysTrips : todaysTrips.filter((t) => t.status === filter)),
+    () => (filter === "alle" ? todaysTrips : todaysTrips.filter((trip) => trip.status === filter)),
     [todaysTrips, filter]
   );
 
   const counts = useMemo(() => {
-    const c: Record<FilterTab, number> = {
+    const countsByTab: Record<FilterTab, number> = {
       alle: todaysTrips.length,
       geplant: 0,
       aktiv: 0,
       erledigt: 0,
       storniert: 0,
     };
-    todaysTrips.forEach((t) => (c[t.status] += 1));
-    return c;
+    todaysTrips.forEach((trip) => (countsByTab[trip.status] += 1));
+    return countsByTab;
   }, [todaysTrips]);
+
+  const prebookedCount = todaysTrips.filter((trip) => trip.prebooked).length;
 
   const addTrip = (trip: Trip) => {
     setTrips((prev) => [...prev, trip]);
@@ -62,7 +64,7 @@ export default function TripsPage() {
   };
 
   const updateTrip = (updated: Trip) => {
-    setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTrips((prev) => prev.map((trip) => (trip.id === updated.id ? updated : trip)));
   };
 
   const todayLabel = new Date().toLocaleDateString("de-DE", {
@@ -75,12 +77,8 @@ export default function TripsPage() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-8 sm:pt-10">
       <header className="mb-5 flex items-start justify-between gap-3 border-b border-line pb-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-            Fahrtenliste
-          </p>
-          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            {todayLabel}
-          </h1>
+          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Fahrtenliste</p>
+          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">{todayLabel}</h1>
         </div>
         <Link
           to="/dashboard"
@@ -89,6 +87,13 @@ export default function TripsPage() {
           Dashboard
         </Link>
       </header>
+
+      <div className="mb-4 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-muted">
+        <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Telefonbuchungen heute</p>
+        <p className="mt-1 text-cream">
+          {todaysTrips.length} Fahrten · {prebookedCount} Vorbestellungen
+        </p>
+      </div>
 
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {filterTabs.map((tab) => (
