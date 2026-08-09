@@ -1,3 +1,5 @@
+import { getTenantStorageScope } from "./auth-storage";
+
 export type FeedbackCategory = "fehler" | "funktionswunsch" | "abrechnung" | "allgemein";
 
 export type FeedbackEntry = {
@@ -11,6 +13,10 @@ export type FeedbackEntry = {
 export const FEEDBACK_STORAGE_KEY = "taxiFlotte.feedback";
 export const SUPPORT_EMAIL = "support@taxischild.de";
 
+function getScopedStorageKey(baseKey: string, tenantId?: string): string {
+  return `${baseKey}.${tenantId ?? getTenantStorageScope()}`;
+}
+
 export const categoryLabels: Record<FeedbackCategory, string> = {
   fehler: "Fehler melden",
   funktionswunsch: "Funktionswunsch",
@@ -18,9 +24,11 @@ export const categoryLabels: Record<FeedbackCategory, string> = {
   allgemein: "Allgemeines Feedback",
 };
 
-export function loadFeedbackHistory(): FeedbackEntry[] {
+export function loadFeedbackHistory(tenantId?: string): FeedbackEntry[] {
   try {
-    const raw = window.localStorage.getItem(FEEDBACK_STORAGE_KEY);
+    const scopedKey = getScopedStorageKey(FEEDBACK_STORAGE_KEY, tenantId);
+    const legacyRaw = window.localStorage.getItem(FEEDBACK_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedKey) ?? legacyRaw;
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -29,8 +37,9 @@ export function loadFeedbackHistory(): FeedbackEntry[] {
   }
 }
 
-export function saveFeedbackHistory(entries: FeedbackEntry[]) {
-  window.localStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(entries));
+export function saveFeedbackHistory(entries: FeedbackEntry[], tenantId?: string) {
+  const scopedKey = getScopedStorageKey(FEEDBACK_STORAGE_KEY, tenantId);
+  window.localStorage.setItem(scopedKey, JSON.stringify(entries));
 }
 
 export function createFeedbackId(): string {
