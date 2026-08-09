@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import OdometerCard from "../components/OdometerCard";
 import HoursCard from "../components/HoursCard";
 import WeekTable from "../components/WeekTable";
@@ -10,6 +12,7 @@ import {
   addDays,
   formatDateFull,
   formatDateCompact,
+  formatDateShort,
   getReport,
   getWeekDates,
   loadReports,
@@ -17,6 +20,7 @@ import {
   todayKey,
   upsertReport,
 } from "../lib/reports-storage";
+import { loadTrips, type Trip } from "../lib/trips-storage";
 
 export default function ReportsPage() {
   const [setup, setSetup] = useState<TaxiSetup>(emptySetup);
@@ -43,8 +47,46 @@ export default function ReportsPage() {
     [reports, selectedDate]
   );
 
+  const weekTrips = useMemo(() => {
+    if (!weekDates.length) return [] as Trip[];
+    return loadTrips()
+      .filter((trip) => weekDates.includes(trip.date))
+      .sort((left, right) => left.pickupTime.localeCompare(right.pickupTime));
+  }, [weekDates]);
+
   const updateReport = (updated: DailyReport) => {
     setReports((prev) => upsertReport(prev, updated));
+  };
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const title = setup.companyName || "TaxiSchild Fahrbericht";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text(title, 40, 50);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(`Fahrer: ${setup.driverName || "—"}`, 40, 74);
+    doc.text(`Fahrzeug: ${setup.vehicleNumber || "—"}`, 40, 92);
+    doc.text(`Berichtswoche: ${formatDateCompact(weekDates[0])} – ${formatDateCompact(weekDates[6])}`, 40, 110);
+
+    autoTable(doc, {
+      head: [["Datum", "Abholzeit", "Kunde", "Ziel", "Vorbestellung", "Preis"]],
+      body: weekTrips.map((trip) => [
+        formatDateShort(trip.date),
+        trip.pickupTime,
+        trip.customerName,
+        trip.destination,
+        trip.prebooked ? "Ja" : "Nein",
+        trip.price || "—",
+      ]),
+      startY: 130,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [22, 22, 22], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 248, 248] },
+    });
+
+    doc.save(`fahrbericht-${selectedDate}.pdf`);
   };
 
   if (!hydrated || !currentReport) {
@@ -62,12 +104,8 @@ export default function ReportsPage() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-16 pt-8 sm:pt-10 print:max-w-full print:px-0 print:pt-0">
       <header className="mb-5 flex items-start justify-between gap-3 border-b border-line pb-4 print:hidden">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-            Reports &amp; Export
-          </p>
-          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            Fahrbericht
-          </h1>
+          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Reports &amp; Export</p>
+          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">Fahrbericht</h1>
         </div>
         <Link
           to="/dashboard"
@@ -80,7 +118,7 @@ export default function ReportsPage() {
       <div className="mb-5 flex items-center justify-between gap-2 print:hidden">
         <button
           type="button"
-          onClick={() => setSelectedDate((d) => addDays(d, -1))}
+          onClick={() => setSelectedDate((value) => addDays(value, -1))}
           aria-label="Vorheriger Tag"
           className="flex h-11 w-11 items-center justify-center rounded-md border border-line font-mono text-lg text-cream hover:border-amber hover:text-amber"
         >
@@ -102,7 +140,7 @@ export default function ReportsPage() {
         </div>
         <button
           type="button"
-          onClick={() => setSelectedDate((d) => addDays(d, 1))}
+          onClick={() => setSelectedDate((value) => addDays(value, 1))}
           aria-label="Nächster Tag"
           className="flex h-11 w-11 items-center justify-center rounded-md border border-line font-mono text-lg text-cream hover:border-amber hover:text-amber"
         >
@@ -117,9 +155,7 @@ export default function ReportsPage() {
 
       <section className="mt-6 print:mt-0">
         <div className="mb-3 flex items-baseline justify-between print:hidden">
-          <h2 className="font-display text-lg font-700 uppercase tracking-wide text-cream">
-            Wochenübersicht
-          </h2>
+          <h2 className="font-display text-lg font-700 uppercase tracking-wide text-cream">Wochenübersicht</h2>
           <span className="font-mono text-xs text-muted">
             {formatDateCompact(weekStart)} – {formatDateCompact(weekEnd)}
           </span>
@@ -145,6 +181,22 @@ export default function ReportsPage() {
           <WeekTable weekDates={weekDates} reports={reports} selectedDate={selectedDate} />
         </div>
 
+        <div className="mt-4 rounded-lg border border-line bg-panel p-4 print:hidden">
+          <h3 className="font-display text-base font-700 uppercase tracking-wide text-cream">Telefonbuchungen dieser Woche</h3>
+          <div className="mt-3 flex flex-col gap-2">
+            {weekTrips.map((trip) => (
+              <div key={trip.id} className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-sm">
+                <div>
+                  <p className="text-cream">{trip.customerName}</p>
+                  <p className="font-mono text-[11px] uppercase tracking-signage text-muted">{trip.pickupTime} · {trip.destination}</p>
+                </div>
+                <span className="font-mono text-xs text-amber">{trip.price || "—"}</span>
+              </div>
+            ))}
+            {weekTrips.length === 0 && <p className="text-sm text-muted">Noch keine Fahrten in dieser Woche.</p>}
+          </div>
+        </div>
+
         <div className="hidden print:mt-10 print:flex print:justify-between print:gap-8">
           <div className="flex-1">
             <div className="h-10 border-b border-asphalt" />
@@ -161,13 +213,22 @@ export default function ReportsPage() {
         </p>
       </section>
 
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-md bg-amber font-display text-lg font-700 uppercase tracking-signage text-asphalt print:hidden"
-      >
-        Bericht drucken / Als PDF exportieren
-      </button>
+      <div className="mt-6 flex flex-col gap-3 print:hidden">
+        <button
+          type="button"
+          onClick={exportPdf}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-md bg-amber font-display text-lg font-700 uppercase tracking-signage text-asphalt"
+        >
+          PDF exportieren
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-md border border-line font-display text-lg font-700 uppercase tracking-signage text-cream"
+        >
+          Bericht drucken
+        </button>
+      </div>
       <p className="mt-2 text-center text-xs text-muted print:hidden">
         Im Druckdialog &quot;Als PDF speichern&quot; wählen, um eine Exportdatei zu erhalten.
       </p>
