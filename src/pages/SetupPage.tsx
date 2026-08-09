@@ -4,6 +4,7 @@ import RoofSign from "../components/RoofSign";
 import FormField from "../components/FormField";
 import BrandFooter from "../components/BrandFooter";
 import { TaxiSetup, createDriver, createInviteCode, createVehicle, emptySetup, loadSetup, saveSetup, isSetupComplete } from "../lib/setup-storage";
+import type { DriverStatus } from "../lib/auth-storage";
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export default function SetupPage() {
     setSetup((prev) => ({ ...prev, vehicles: prev.vehicles.filter((vehicle) => vehicle.id !== id) }));
   };
 
-  const updateDriver = (id: string, field: "name" | "email" | "phone" | "active", value: string | boolean) => {
+  const updateDriver = (id: string, field: "name" | "email" | "phone" | "active" | "status" | "offDates", value: string | boolean | string[]) => {
     setSetup((prev) => ({
       ...prev,
       drivers: prev.drivers.map((driver) => (driver.id === id ? { ...driver, [field]: value } : driver)),
@@ -65,11 +66,12 @@ export default function SetupPage() {
     const normalizedSetup: TaxiSetup = {
       ...setup,
       inviteCode: setup.inviteCode || createInviteCode(),
+      inviteCodeUsed: setup.inviteCodeUsed || false,
       vehicles: setup.vehicles.length
         ? setup.vehicles
         : [createVehicle(setup.vehicleNumber || "Fahrzeug 1", setup.vehicleNumber || "")],
       drivers: setup.drivers.length
-        ? setup.drivers
+        ? setup.drivers.map((driver) => ({ ...driver, status: driver.status ?? "available", offDates: driver.offDates ?? [] }))
         : [createDriver(setup.driverName || "Hauptfahrer", "")],
       defaultVehicleId: setup.defaultVehicleId || setup.vehicles[0]?.id || "",
     };
@@ -187,6 +189,23 @@ export default function SetupPage() {
                   value={driver.phone}
                   onChange={(event) => updateDriver(driver.id, "phone", event.target.value)}
                   placeholder="Telefon (optional)"
+                  className="mb-2 w-full rounded-md border border-line bg-panel px-3 py-2 text-sm text-cream outline-none focus:border-amber"
+                />
+                <select
+                  value={driver.status}
+                  onChange={(event) => updateDriver(driver.id, "status", event.target.value as DriverStatus)}
+                  className="mb-2 w-full rounded-md border border-line bg-panel px-3 py-2 text-sm text-cream outline-none focus:border-amber"
+                >
+                  <option value="available">Verfügbar</option>
+                  <option value="busy">Beschäftigt</option>
+                  <option value="resting">Pause</option>
+                  <option value="offday">Urlaub</option>
+                  <option value="sick">Krank</option>
+                </select>
+                <input
+                  value={driver.offDates.join(", ")}
+                  onChange={(event) => updateDriver(driver.id, "offDates", event.target.value.split(",").map((entry) => entry.trim()).filter(Boolean))}
+                  placeholder="2026-08-10, 2026-08-11"
                   className="w-full rounded-md border border-line bg-panel px-3 py-2 text-sm text-cream outline-none focus:border-amber"
                 />
               </div>

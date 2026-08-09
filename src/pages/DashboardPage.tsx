@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import BrandFooter from "../components/BrandFooter";
-import { getActiveUser, signOut, type UserAccount } from "../lib/auth-storage";
-import { TaxiSetup, emptySetup, loadSetup } from "../lib/setup-storage";
+import { getActiveUser, signOut, type DriverStatus, type UserAccount } from "../lib/auth-storage";
+import { TaxiSetup, emptySetup, loadSetup, saveSetup } from "../lib/setup-storage";
 import { loadTrips, todayKey } from "../lib/trips-storage";
 import { loadReports } from "../lib/reports-storage";
 
@@ -11,23 +11,54 @@ export default function DashboardPage() {
   const [setup, setSetup] = useState<TaxiSetup>(emptySetup);
   const [activeUser, setActiveUser] = useState<UserAccount | null>(null);
   const [checked, setChecked] = useState(false);
+  const [offDateInput, setOffDateInput] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const user = getActiveUser();
-    if (!user) {
+    if (!user || user.role !== "owner") {
       navigate("/login", { replace: true });
       return;
     }
     setActiveUser(user);
-    setSetup(loadSetup(user.companyId));
+    const savedSetup = loadSetup(user.companyId);
+    setSetup(savedSetup);
     setChecked(true);
   }, [navigate]);
+
+  useEffect(() => {
+    if (!checked) return;
+    saveSetup(setup, activeUser?.companyId);
+  }, [setup, checked, activeUser?.companyId]);
 
   const todaysTrips = useMemo(() => loadTrips().filter((trip) => trip.date === todayKey()), []);
   const reportsCount = useMemo(() => loadReports().length, []);
   const vehicleCount = setup.vehicles.length;
   const driverCount = setup.drivers.length;
   const activeTrips = todaysTrips.filter((trip) => trip.status === "aktiv").length;
+
+  const visibleDrivers = useMemo(
+    () => setup.drivers.filter((driver) => driver.status !== "offday" && driver.status !== "sick"),
+    [setup.drivers]
+  );
+
+  const updateDriverStatus = (driverId: string, status: DriverStatus) => {
+    setSetup((prev) => ({
+      ...prev,
+      drivers: prev.drivers.map((driver) => (driver.id === driverId ? { ...driver, status } : driver)),
+    }));
+  };
+
+  const addOffDate = (driverId: string) => {
+    const value = (offDateInput[driverId] || "").trim();
+    if (!value) return;
+    setSetup((prev) => ({
+      ...prev,
+      drivers: prev.drivers.map((driver) =>
+        driver.id === driverId ? { ...driver, offDates: [...new Set([...driver.offDates, value])] } : driver
+      ),
+    }));
+    setOffDateInput((prev) => ({ ...prev, [driverId]: "" }));
+  };
 
   if (!checked) {
     return (
@@ -129,6 +160,61 @@ export default function DashboardPage() {
           <div className="mt-2 flex items-baseline justify-between">
             <span className="font-body text-sm text-cream">Fahrzeugflotte</span>
             <span className="font-mono text-sm text-amber">{vehicleCount} / {driverCount}</span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-panel px-4 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-display text-lg font-700 uppercase tracking-wide text-cream">Fahrer-Status</h2>
+            <span className="font-mono text-[11px] uppercase tracking-signage text-muted">nur operative Fahrer</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {visibleDrivers.map((driver) => (
+              <div key={driver.id} className="rounded-md border border-line bg-asphalt p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm text-cream">{driver.name}</p>
+                    <p className="font-mono text-[11px] uppercase tracking-signage text-muted">{driver.phone || driver.email || "ohne Kontakt"}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 font-mono text-[11px] ${
+                    driver.status === "available" ? "bg-emerald-500/20 text-emerald-300" :
+                    driver.status === "busy" ? "bg-amber-500/20 text-amber-300" :
+                    "bg-slate-500/20 text-slate-200"
+                  }`}>
+                    {driver.status === "available" ? "frei" : driver.status === "busy" ? "aktiv" : driver.status === "resting" ? "pause" : driver.status}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(["available", "busy", "resting"] as DriverStatus[]).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => updateDriverStatus(driver.id, status)}
+                      className={`rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-signage ${
+                        driver.status === status ? "border-amber bg-amber text-asphalt" : "border-line text-cream"
+                      }`}
+                    >
+                      {status === "available" ? "frei" : status === "busy" ? "aktiv" : "pause"}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={offDateInput[driver.id] ?? ""}
+                    onChange={(event) => setOffDateInput((prev) => ({ ...prev, [driver.id]: event.target.value }))}
+                    placeholder="2026-08-10"
+                    className="flex-1 rounded-md border border-line bg-panel px-3 py-2 text-sm text-cream outline-none focus:border-amber"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addOffDate(driver.id)}
+                    className="rounded-md border border-line px-3 py-2 font-mono text-[11px] uppercase tracking-signage text-cream"
+                  >
+                    Urlaub
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

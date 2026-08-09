@@ -1,4 +1,4 @@
-import { getTenantStorageScope } from "./auth-storage";
+import { getTenantStorageScope, getActiveUser } from "./auth-storage";
 
 export type TripStatus = "geplant" | "aktiv" | "erledigt" | "storniert";
 
@@ -29,6 +29,7 @@ export type Trip = {
   actualStartTime?: string;
   actualEndTime?: string;
   serviceType?: string;
+  reminderSent?: boolean;
 };
 
 export const TRIPS_STORAGE_KEY = "taxiFlotte.trips";
@@ -44,6 +45,14 @@ export function todayKey(): string {
   ).padStart(2, "0")}`;
 }
 
+export function tomorrowKey(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 export function loadTrips(tenantId?: string): Trip[] {
   try {
     const scopedKey = getScopedStorageKey(TRIPS_STORAGE_KEY, tenantId);
@@ -51,7 +60,13 @@ export function loadTrips(tenantId?: string): Trip[] {
     const raw = window.localStorage.getItem(scopedKey) ?? legacyRaw;
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const trips = Array.isArray(parsed) ? parsed : [];
+    const activeUser = getActiveUser();
+    if (!activeUser) return trips;
+    if (activeUser.role === "driver") {
+      return trips.filter((trip) => trip.driverId === activeUser.id);
+    }
+    return trips;
   } catch {
     return [];
   }

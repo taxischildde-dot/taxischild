@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { getActiveUser } from "../lib/auth-storage";
 import { loadSetup, type TaxiSetup } from "../lib/setup-storage";
 import { Trip, createTripId, todayKey } from "../lib/trips-storage";
+import { loadPassengers, upsertPassenger } from "../lib/passengers-storage";
 
 type TripFormProps = {
   onAdd: (trip: Trip) => void;
@@ -47,12 +49,22 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
   const [form, setForm] = useState<TripFormState>(emptyForm);
   const [vehicles, setVehicles] = useState<TaxiSetup["vehicles"]>([]);
   const [drivers, setDrivers] = useState<TaxiSetup["drivers"]>([]);
+  const [passengers, setPassengers] = useState<Array<{ id: string; name: string; phone: string; address: string; notes: string; lastUsedAt: number }>>([]);
+
+  const activeUser = useMemo(() => getActiveUser(), []);
 
   useEffect(() => {
     const setup = loadSetup();
     setVehicles(setup.vehicles);
     setDrivers(setup.drivers);
-  }, []);
+    setPassengers(loadPassengers());
+    const initialDriverId = activeUser?.role === "driver" ? activeUser.id : "";
+    setForm((prev) => ({
+      ...prev,
+      vehicleId: prev.vehicleId || setup.vehicles[0]?.id || "",
+      driverId: prev.driverId || initialDriverId,
+    }));
+  }, [activeUser]);
 
   const set = <K extends keyof TripFormState>(key: K, value: TripFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -89,7 +101,15 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
       driverName: selectedDriver?.name || "",
       passengerCount: form.passengerCount ? Number(form.passengerCount) : undefined,
       serviceType: form.serviceType || "standard",
+      reminderSent: false,
     };
+
+    upsertPassenger({
+      name: trip.customerName,
+      phone: trip.phoneNumber,
+      address: trip.pickupAddress,
+      notes: trip.notes,
+    });
 
     onAdd(trip);
     setForm(emptyForm);
@@ -113,6 +133,34 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
           ×
         </button>
       </div>
+
+      {passengers.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="passengerSelect" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Wiederkehrende Kunde
+          </label>
+          <select
+            id="passengerSelect"
+            value=""
+            onChange={(event) => {
+              const selected = passengers.find((candidate) => candidate.id === event.target.value);
+              if (!selected) return;
+              set("customerName", selected.name);
+              set("phoneNumber", selected.phone);
+              set("pickupAddress", selected.address);
+              set("notes", selected.notes);
+            }}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
+          >
+            <option value="">Bitte auswählen …</option>
+            {passengers.map((passenger) => (
+              <option key={passenger.id} value={passenger.id}>
+                {passenger.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">

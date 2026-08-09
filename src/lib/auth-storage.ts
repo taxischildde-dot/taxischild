@@ -1,5 +1,7 @@
 export type AccountRole = "owner" | "driver";
 
+export type DriverStatus = "available" | "busy" | "resting" | "offday" | "sick";
+
 export type CompanyVehicle = {
   id: string;
   label: string;
@@ -10,9 +12,11 @@ export type CompanyVehicle = {
 export type CompanyDriver = {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email: string;
+  phone: string;
   active: boolean;
+  status: DriverStatus;
+  offDates: string[];
 };
 
 export type AccountProfile = {
@@ -22,8 +26,10 @@ export type AccountProfile = {
   companyId: string;
   role: AccountRole;
   inviteCode: string;
+  inviteCodeUsed: boolean;
   vehicles: CompanyVehicle[];
   drivers: CompanyDriver[];
+  defaultVehicleId?: string;
 };
 
 export type UserAccount = {
@@ -42,8 +48,10 @@ type AuthSession = {
   companyId: string;
   role: AccountRole;
   inviteCode: string;
+  inviteCodeUsed: boolean;
   vehicles: CompanyVehicle[];
   drivers: CompanyDriver[];
+  defaultVehicleId?: string;
   createdAt: number;
 };
 
@@ -76,22 +84,24 @@ function createInviteCode(): string {
   return `TX-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
-function createVehicle(registration: string): CompanyVehicle {
+function createVehicle(label: string, registration: string): CompanyVehicle {
   return {
     id: createId("vehicle"),
-    label: registration || "Fahrzeug 1",
+    label: label || "Fahrzeug 1",
     registration: registration || "",
     notes: "",
   };
 }
 
-function createDriver(name: string): CompanyDriver {
+function createDriver(name: string, email = "", phone = ""): CompanyDriver {
   return {
     id: createId("driver"),
     name: name || "Hauptfahrer",
-    email: "",
-    phone: "",
+    email,
+    phone,
     active: true,
+    status: "available",
+    offDates: [],
   };
 }
 
@@ -140,32 +150,43 @@ export function registerAccount(input: {
 
   if (role === "driver") {
     const owner = users.find(
-      (candidate) => candidate.role === "owner" && candidate.inviteCode.toLowerCase() === inviteCodeInput.toLowerCase()
+      (candidate) =>
+        candidate.role === "owner" &&
+        !candidate.inviteCodeUsed &&
+        candidate.inviteCode.toLowerCase() === inviteCodeInput.toLowerCase()
     );
 
     if (!owner) {
-      return { ok: false, error: "Einladungscode ist ungültig oder nicht vorhanden." };
+      return { ok: false, error: "Einladungscode ist ungültig oder wurde bereits verwendet." };
     }
 
+    const driverCompanyName = owner.companyName || companyName || "TaxiSchild Betrieb";
     const user: UserAccount = {
       id: createId("tenant"),
       email,
       password,
       createdAt: Date.now(),
-      companyName: owner.companyName,
-      vehicleNumber: owner.vehicleNumber,
-      driverName: driverName || owner.driverName,
+      companyName: driverCompanyName,
+      vehicleNumber: owner.vehicleNumber || vehicleNumber,
+      driverName: driverName || owner.driverName || email,
       companyId: owner.companyId,
       role: "driver",
-      inviteCode: owner.inviteCode,
+      inviteCode: "",
+      inviteCodeUsed: true,
       vehicles: owner.vehicles,
       drivers: owner.drivers,
+      defaultVehicleId: owner.defaultVehicleId,
     };
 
     const nextUsers = [...users, user];
-    const nextOwnerDrivers = [...owner.drivers, createDriver(driverName || email)];
+    const nextOwner = {
+      ...owner,
+      inviteCodeUsed: true,
+      inviteCode: "",
+      drivers: [...owner.drivers, createDriver(driverName || email, email)],
+    };
     const nextUsersWithOwner = nextUsers.map((candidate) =>
-      candidate.id === owner.id ? { ...candidate, drivers: nextOwnerDrivers } : candidate
+      candidate.id === owner.id ? nextOwner : candidate
     );
 
     writeStorage(USERS_KEY, nextUsersWithOwner);
@@ -178,8 +199,10 @@ export function registerAccount(input: {
       companyId: user.companyId,
       role: user.role,
       inviteCode: user.inviteCode,
+      inviteCodeUsed: user.inviteCodeUsed,
       vehicles: user.vehicles,
       drivers: user.drivers,
+      defaultVehicleId: user.defaultVehicleId,
       createdAt: user.createdAt,
     });
 
@@ -188,6 +211,8 @@ export function registerAccount(input: {
 
   const companyId = createId("company");
   const inviteCode = createInviteCode();
+  const ownerVehicles = vehicleNumber ? [createVehicle(vehicleNumber, vehicleNumber)] : [];
+  const ownerDrivers = driverName ? [createDriver(driverName, email)] : [];
   const user: UserAccount = {
     id: createId("tenant"),
     email,
@@ -199,8 +224,10 @@ export function registerAccount(input: {
     companyId,
     role: "owner",
     inviteCode,
-    vehicles: vehicleNumber ? [createVehicle(vehicleNumber)] : [],
-    drivers: driverName || companyName ? [createDriver(driverName || companyName || "Hauptfahrer")] : [],
+    inviteCodeUsed: false,
+    vehicles: ownerVehicles,
+    drivers: ownerDrivers,
+    defaultVehicleId: ownerVehicles[0]?.id,
   };
 
   const nextUsers = [...users, user];
@@ -214,8 +241,10 @@ export function registerAccount(input: {
     companyId: user.companyId,
     role: user.role,
     inviteCode: user.inviteCode,
+    inviteCodeUsed: user.inviteCodeUsed,
     vehicles: user.vehicles,
     drivers: user.drivers,
+    defaultVehicleId: user.defaultVehicleId,
     createdAt: user.createdAt,
   });
 
@@ -244,15 +273,17 @@ export function signIn(input: { email: string; password: string }): { ok: boolea
     companyId: user.companyId,
     role: user.role,
     inviteCode: user.inviteCode,
+    inviteCodeUsed: user.inviteCodeUsed,
     vehicles: user.vehicles,
     drivers: user.drivers,
+    defaultVehicleId: user.defaultVehicleId,
     createdAt: user.createdAt,
   });
 
   return { ok: true, user };
 }
 
-export function updateUserProfile(userId: string, profile: Omit<AccountProfile, "companyId" | "role" | "inviteCode" | "vehicles" | "drivers">) {
+export function updateUserProfile(userId: string, profile: Omit<AccountProfile, "companyId" | "role" | "inviteCode" | "inviteCodeUsed" | "vehicles" | "drivers" | "defaultVehicleId">) {
   const users = getAllUsers();
   const nextUsers = users.map((user) => (user.id === userId ? { ...user, ...profile } : user));
   writeStorage(USERS_KEY, nextUsers);

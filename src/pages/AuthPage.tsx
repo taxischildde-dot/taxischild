@@ -37,7 +37,7 @@ export default function AuthPage() {
         setError(result.error ?? "Login fehlgeschlagen.");
         return;
       }
-      navigate("/dashboard", { replace: true });
+      navigate(result.user?.role === "driver" ? "/driver-dashboard" : "/dashboard", { replace: true });
       return;
     }
 
@@ -57,7 +57,7 @@ export default function AuthPage() {
       return;
     }
 
-    navigate("/dashboard", { replace: true });
+    navigate(result.user?.role === "driver" ? "/driver-dashboard" : "/dashboard", { replace: true });
   };
 
   return (

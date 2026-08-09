@@ -1,12 +1,13 @@
-import { getTenantStorageScope } from "./auth-storage";
+import { getTenantStorageScope, type CompanyDriver, type CompanyVehicle, type DriverStatus } from "./auth-storage";
 
 export type TaxiSetup = {
   companyName: string;
   vehicleNumber: string;
   driverName: string;
   inviteCode: string;
-  vehicles: Array<{ id: string; label: string; registration: string; notes: string }>;
-  drivers: Array<{ id: string; name: string; email: string; phone: string; active: boolean }>;
+  inviteCodeUsed: boolean;
+  vehicles: CompanyVehicle[];
+  drivers: CompanyDriver[];
   defaultVehicleId?: string;
 };
 
@@ -17,6 +18,7 @@ export const emptySetup: TaxiSetup = {
   vehicleNumber: "",
   driverName: "",
   inviteCode: "",
+  inviteCodeUsed: false,
   vehicles: [],
   drivers: [],
   defaultVehicleId: "",
@@ -26,7 +28,7 @@ function getScopedStorageKey(baseKey: string, tenantId?: string): string {
   return `${baseKey}.${tenantId ?? getTenantStorageScope()}`;
 }
 
-export function createVehicle(label: string, registration: string) {
+export function createVehicle(label: string, registration: string): CompanyVehicle {
   return {
     id: `vehicle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     label: label || "Fahrzeug 1",
@@ -35,13 +37,15 @@ export function createVehicle(label: string, registration: string) {
   };
 }
 
-export function createDriver(name: string, email = "") {
+export function createDriver(name: string, email = "", phone = "", status: DriverStatus = "available"): CompanyDriver {
   return {
     id: `driver_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     name: name || "Hauptfahrer",
     email,
-    phone: "",
+    phone,
     active: true,
+    status,
+    offDates: [],
   };
 }
 
@@ -63,7 +67,15 @@ export function loadSetup(tenantId?: string): TaxiSetup {
         ? [createVehicle(parsed.vehicleNumber, parsed.vehicleNumber)]
         : [];
     const drivers = Array.isArray(parsed.drivers) && parsed.drivers.length
-      ? parsed.drivers
+      ? parsed.drivers.map((driver: Partial<CompanyDriver>) => ({
+          id: driver.id ?? `driver_${Date.now()}`,
+          name: driver.name ?? "Fahrer",
+          email: driver.email ?? "",
+          phone: driver.phone ?? "",
+          active: driver.active ?? true,
+          status: driver.status ?? "available",
+          offDates: Array.isArray(driver.offDates) ? driver.offDates : [],
+        }))
       : parsed.driverName
         ? [createDriver(parsed.driverName)]
         : [];
@@ -73,6 +85,7 @@ export function loadSetup(tenantId?: string): TaxiSetup {
       vehicleNumber: parsed.vehicleNumber ?? "",
       driverName: parsed.driverName ?? "",
       inviteCode: parsed.inviteCode ?? "",
+      inviteCodeUsed: Boolean(parsed.inviteCodeUsed),
       vehicles,
       drivers,
       defaultVehicleId: parsed.defaultVehicleId ?? (vehicles[0]?.id ?? ""),
