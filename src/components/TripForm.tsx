@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Trip, createTripId, todayKey } from "../lib/trips-storage";
 
 type TripFormProps = {
@@ -6,28 +6,46 @@ type TripFormProps = {
   onClose: () => void;
 };
 
-const emptyForm = {
+type TripFormState = {
+  bookingTime: string;
+  pickupTime: string;
+  dueTime: string;
+  customerName: string;
+  phoneNumber: string;
+  pickupAddress: string;
+  destination: string;
+  wheelchair: boolean;
+  prebooked: boolean;
+  price: string;
+  notes: string;
+};
+
+const emptyForm: TripFormState = {
+  bookingTime: "",
   pickupTime: "",
   dueTime: "",
   customerName: "",
+  phoneNumber: "",
   pickupAddress: "",
   destination: "",
   wheelchair: false,
-  prebooked: false,
+  prebooked: true,
+  price: "",
   notes: "",
 };
 
 export default function TripForm({ onAdd, onClose }: TripFormProps) {
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<TripFormState>(emptyForm);
 
-  const set = <K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) =>
+  const set = <K extends keyof TripFormState>(key: K, value: TripFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const canSubmit =
-    form.pickupTime.trim() && form.customerName.trim() && form.pickupAddress.trim() && form.destination.trim();
+  const canSubmit = Boolean(
+    form.pickupTime.trim() && form.customerName.trim() && form.pickupAddress.trim() && form.destination.trim()
+  );
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!canSubmit) return;
 
     const trip: Trip = {
@@ -35,11 +53,14 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
       date: todayKey(),
       pickupTime: form.pickupTime,
       dueTime: form.dueTime,
+      bookingTime: form.bookingTime.trim(),
       customerName: form.customerName.trim(),
+      phoneNumber: form.phoneNumber.trim(),
       pickupAddress: form.pickupAddress.trim(),
       destination: form.destination.trim(),
       wheelchair: form.wheelchair,
       prebooked: form.prebooked,
+      price: form.price.trim(),
       notes: form.notes.trim(),
       status: "geplant",
       createdAt: Date.now(),
@@ -50,14 +71,14 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-5 rounded-lg border border-line bg-panel p-4"
-    >
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5 rounded-lg border border-line bg-panel p-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-xl font-700 uppercase tracking-wide text-cream">
-          Neue Fahrt
-        </h2>
+        <div>
+          <h2 className="font-display text-xl font-700 uppercase tracking-wide text-cream">Neue Fahrt</h2>
+          <p className="mt-1 font-mono text-[11px] uppercase tracking-signage text-muted">
+            Schnell für Telefonbuchungen erfassen
+          </p>
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -70,6 +91,18 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
+          <label htmlFor="bookingTime" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Buchungszeit
+          </label>
+          <input
+            id="bookingTime"
+            type="time"
+            value={form.bookingTime}
+            onChange={(event) => set("bookingTime", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
           <label htmlFor="pickupTime" className="font-mono text-[11px] uppercase tracking-signage text-muted">
             Abholzeit
           </label>
@@ -78,37 +111,40 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
             type="time"
             required
             value={form.pickupTime}
-            onChange={(e) => set("pickupTime", e.target.value)}
-            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="dueTime" className="font-mono text-[11px] uppercase tracking-signage text-muted">
-            Fällig um
-          </label>
-          <input
-            id="dueTime"
-            type="time"
-            value={form.dueTime}
-            onChange={(e) => set("dueTime", e.target.value)}
+            onChange={(event) => set("pickupTime", event.target.value)}
             className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream outline-none focus:border-amber"
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="customerName" className="font-mono text-[11px] uppercase tracking-signage text-muted">
-          Kundenname
-        </label>
-        <input
-          id="customerName"
-          type="text"
-          required
-          placeholder="z. B. Frau Keller"
-          value={form.customerName}
-          onChange={(e) => set("customerName", e.target.value)}
-          className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="customerName" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Kundenname
+          </label>
+          <input
+            id="customerName"
+            type="text"
+            required
+            placeholder="z. B. Frau Keller"
+            value={form.customerName}
+            onChange={(event) => set("customerName", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="phoneNumber" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Telefon
+          </label>
+          <input
+            id="phoneNumber"
+            type="tel"
+            placeholder="z. B. 0151 12345678"
+            value={form.phoneNumber}
+            onChange={(event) => set("phoneNumber", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -121,30 +157,43 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
           required
           placeholder="Straße, Hausnummer, PLZ, Ort"
           value={form.pickupAddress}
-          onChange={(e) => set("pickupAddress", e.target.value)}
+          onChange={(event) => set("pickupAddress", event.target.value)}
           className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="destination" className="font-mono text-[11px] uppercase tracking-signage text-muted">
-          Ziel
-        </label>
-        <input
-          id="destination"
-          type="text"
-          required
-          placeholder="z. B. ROW oder Honerdingen"
-          value={form.destination}
-          onChange={(e) => set("destination", e.target.value)}
-          className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber font-mono uppercase tracking-wider"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="destination" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Ziel
+          </label>
+          <input
+            id="destination"
+            type="text"
+            required
+            placeholder="z. B. ROW oder Honerdingen"
+            value={form.destination}
+            onChange={(event) => set("destination", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber font-mono uppercase tracking-wider"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="price" className="font-mono text-[11px] uppercase tracking-signage text-muted">
+            Preis
+          </label>
+          <input
+            id="price"
+            type="text"
+            placeholder="z. B. 18,50 €"
+            value={form.price}
+            onChange={(event) => set("price", event.target.value)}
+            className="rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="font-mono text-[11px] uppercase tracking-signage text-muted">
-          Besonderheiten
-        </span>
+        <span className="font-mono text-[11px] uppercase tracking-signage text-muted">Besonderheiten</span>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -176,7 +225,7 @@ export default function TripForm({ onAdd, onClose }: TripFormProps) {
           rows={2}
           placeholder="z. B. Rollstuhlrampe nötig, 2. Etage, Klingel defekt …"
           value={form.notes}
-          onChange={(e) => set("notes", e.target.value)}
+          onChange={(event) => set("notes", event.target.value)}
           className="resize-none rounded-md border border-line bg-asphalt px-3 py-3 text-base text-cream placeholder:text-muted/50 outline-none focus:border-amber"
         />
       </div>

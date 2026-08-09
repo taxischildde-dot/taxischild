@@ -1,3 +1,5 @@
+import { getTenantStorageScope } from "./auth-storage";
+
 export type DailyReport = {
   date: string; // YYYY-MM-DD
   startKm: number | null;
@@ -9,13 +11,19 @@ export type DailyReport = {
 
 export const REPORTS_STORAGE_KEY = "taxiFlotte.reports";
 
+function getScopedStorageKey(baseKey: string, tenantId?: string): string {
+  return `${baseKey}.${tenantId ?? getTenantStorageScope()}`;
+}
+
 export function emptyReport(date: string): DailyReport {
   return { date, startKm: null, endKm: null, workStart: "", workEnd: "", breakMinutes: null };
 }
 
-export function loadReports(): DailyReport[] {
+export function loadReports(tenantId?: string): DailyReport[] {
   try {
-    const raw = window.localStorage.getItem(REPORTS_STORAGE_KEY);
+    const scopedKey = getScopedStorageKey(REPORTS_STORAGE_KEY, tenantId);
+    const legacyRaw = window.localStorage.getItem(REPORTS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedKey) ?? legacyRaw;
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -24,8 +32,9 @@ export function loadReports(): DailyReport[] {
   }
 }
 
-export function saveReports(reports: DailyReport[]) {
-  window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(reports));
+export function saveReports(reports: DailyReport[], tenantId?: string) {
+  const scopedKey = getScopedStorageKey(REPORTS_STORAGE_KEY, tenantId);
+  window.localStorage.setItem(scopedKey, JSON.stringify(reports));
 }
 
 export function upsertReport(reports: DailyReport[], updated: DailyReport): DailyReport[] {

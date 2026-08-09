@@ -44,11 +44,17 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
       </div>
 
       <p className="mt-2 font-body text-lg text-cream">{trip.customerName}</p>
+      {trip.phoneNumber && <p className="text-sm text-amber">{trip.phoneNumber}</p>}
       <p className="text-sm text-muted">{trip.pickupAddress}</p>
 
       <div className="mt-2 flex items-center gap-1.5 font-mono text-sm uppercase tracking-wider text-amber">
         <span aria-hidden="true">→</span>
         <span>{trip.destination}</span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted">
+        {trip.bookingTime && <span className="rounded-full border border-line px-2.5 py-1">📞 {trip.bookingTime}</span>}
+        {trip.price && <span className="rounded-full border border-line px-2.5 py-1">💶 {trip.price}</span>}
       </div>
 
       {(trip.wheelchair || trip.prebooked || trip.notes) && (
@@ -100,7 +106,7 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
         {!isFinal && (
           <button
             type="button"
-            onClick={() => setCancelPanelOpen((v) => !v)}
+            onClick={() => setCancelPanelOpen((value) => !value)}
             className="flex h-12 items-center justify-center rounded-md border border-alert px-4 font-mono text-sm uppercase tracking-signage text-alert"
           >
             Storno
@@ -120,9 +126,7 @@ export default function TripCard({ trip, onUpdate }: TripCardProps) {
 
       {cancelPanelOpen && (
         <div className="mt-3 rounded-md border border-alert/40 bg-asphalt p-3">
-          <p className="mb-2 font-mono text-[11px] uppercase tracking-signage text-muted">
-            Grund der Stornierung
-          </p>
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-signage text-muted">Grund der Stornierung</p>
           <div className="flex flex-col gap-2">
             {reasonOptions.map((option) => (
               <label
