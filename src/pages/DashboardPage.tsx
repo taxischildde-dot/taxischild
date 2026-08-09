@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import BrandFooter from "../components/BrandFooter";
 import { getActiveUser, signOut, type UserAccount } from "../lib/auth-storage";
 import { TaxiSetup, emptySetup, loadSetup } from "../lib/setup-storage";
-import { loadTrips } from "../lib/trips-storage";
+import { loadTrips, todayKey } from "../lib/trips-storage";
 import { loadReports } from "../lib/reports-storage";
 
 export default function DashboardPage() {
@@ -23,7 +23,7 @@ export default function DashboardPage() {
     setChecked(true);
   }, [navigate]);
 
-  const todaysTrips = useMemo(() => loadTrips().filter((trip) => trip.date === new Date().toISOString().slice(0, 10)), []);
+  const todaysTrips = useMemo(() => loadTrips().filter((trip) => trip.date === todayKey()), []);
   const reportsCount = useMemo(() => loadReports().length, []);
 
   if (!checked) {
