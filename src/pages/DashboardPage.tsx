@@ -4,7 +4,7 @@ import { getActiveUser, CompanyDriver, CompanyVehicle } from "../lib/auth-storag
 import { loadTrips, saveTrips, Trip, createTripId, todayKey } from "../lib/trips-storage";
 import { loadSetup, saveSetup, TaxiSetup } from "../lib/setup-storage";
 import { addNotification } from "../lib/notifications-storage";
-import { loadPassengers, SavedPassenger } from "../lib/passengers-storage";
+import { saveNotifications, loadNotifications } from "../lib/notifications-storage";
 import StatusBadge from "../components/StatusBadge";
 import BrandFooter from "../components/BrandFooter";
 
