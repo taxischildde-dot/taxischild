@@ -59,7 +59,17 @@ export default function DashboardPage() {
     saveTrips(all, activeUser?.companyId);
     setTrips(all);
     if (trip.driverId) {
-      addNotification({
+const notifs = loadNotifications(activeUser?.companyId);
+const newNotif = {
+  id: `notif_${Date.now()}`,
+  userId: trip.driverId,
+  type: "assigned_trip" as const,
+  message: `Neue Fahrt: ${trip.customerName} um ${trip.pickupTime}`,
+  tripId: trip.id,
+  read: false,
+  createdAt: Date.now(),
+};
+saveNotifications([...notifs, newNotif], activeUser?.companyId);
         userId: trip.driverId,
         type: "assigned_trip",
         message: `Neue Fahrt: ${trip.customerName} um ${trip.pickupTime}`,
