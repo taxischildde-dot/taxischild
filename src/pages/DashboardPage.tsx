@@ -4,7 +4,7 @@ import { getActiveUser, CompanyDriver, CompanyVehicle } from "../lib/auth-storag
 import { loadTrips, saveTrips, Trip, createTripId, todayKey } from "../lib/trips-storage";
 import { loadSetup, saveSetup, TaxiSetup } from "../lib/setup-storage";
 import { addNotification } from "../lib/notifications-storage";
-import { saveNotifications, loadNotifications } from "../lib/notifications-storage";
+import { loadPassengers, SavedPassenger } from "../lib/passengers-storage";
 import StatusBadge from "../components/StatusBadge";
 import BrandFooter from "../components/BrandFooter";
 
@@ -54,22 +54,18 @@ export default function DashboardPage() {
     }).sort((a, b) => a.pickupTime.localeCompare(b.pickupTime));
   }, [trips, filter]);
 
- const handleAddTrip = (trip: Trip) => {
+  const handleAddTrip = (trip: Trip) => {
     const all = [...trips, trip];
     saveTrips(all, activeUser?.companyId);
     setTrips(all);
     if (trip.driverId) {
-      const notifs = loadNotifications(activeUser?.companyId);
-      const newNotif = {
-        id: `notif_${Date.now()}`,
+      addNotification({
         userId: trip.driverId,
-        type: "assigned_trip" as const,
+        type: "assigned_trip",
         message: `Neue Fahrt: ${trip.customerName} um ${trip.pickupTime}`,
         tripId: trip.id,
         read: false,
-        createdAt: Date.now(),
-      };
-      saveNotifications([...notifs, newNotif], activeUser?.companyId);
+      }, activeUser?.companyId);
     }
     setShowAddTrip(false);
   };
