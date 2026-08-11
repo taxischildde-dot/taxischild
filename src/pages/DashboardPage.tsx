@@ -59,23 +59,17 @@ export default function DashboardPage() {
     saveTrips(all, activeUser?.companyId);
     setTrips(all);
     if (trip.driverId) {
-const notifs = loadNotifications(activeUser?.companyId);
-const newNotif = {
-  id: `notif_${Date.now()}`,
-  userId: trip.driverId,
-  type: "assigned_trip" as const,
-  message: `Neue Fahrt: ${trip.customerName} um ${trip.pickupTime}`,
-  tripId: trip.id,
-  read: false,
-  createdAt: Date.now(),
-};
-saveNotifications([...notifs, newNotif], activeUser?.companyId);
+      const notifs = loadNotifications(activeUser?.companyId);
+      const newNotif = {
+        id: `notif_${Date.now()}`,
         userId: trip.driverId,
-        type: "assigned_trip",
+        type: "assigned_trip" as const,
         message: `Neue Fahrt: ${trip.customerName} um ${trip.pickupTime}`,
         tripId: trip.id,
         read: false,
-      }, activeUser?.companyId);
+        createdAt: Date.now(),
+      };
+      saveNotifications([...notifs, newNotif], activeUser?.companyId);
     }
     setShowAddTrip(false);
   };
@@ -93,7 +87,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
 
   return (
     <div className="min-h-dvh bg-asphalt text-cream font-body">
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-panel/95 backdrop-blur border-b border-line">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
@@ -111,7 +104,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* Invite Code */}
         <div className="bg-panel p-4 rounded-xl border border-line flex items-center justify-between">
           <div>
             <p className="text-xs text-muted uppercase tracking-signage">Einladungscode (einmalig pro Fahrer)</p>
@@ -122,7 +114,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
           </button>
         </div>
 
-        {/* Drivers Grid */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrer-Status</h2>
@@ -154,7 +145,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
           </div>
         </div>
 
-        {/* Inactive Drivers (Urlaub / Krank / Frei) */}
         {inactiveDrivers.length > 0 && (
           <div className="bg-panel/50 p-4 rounded-xl border border-line/50">
             <p className="text-xs text-muted uppercase tracking-signage mb-3">Abwesend — automatisch ausgeblendet</p>
@@ -166,7 +156,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
           </div>
         )}
 
-        {/* Add Trip Modal */}
         {showAddTrip && (
           <QuickTripForm 
             drivers={activeDrivers} 
@@ -177,7 +166,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
           />
         )}
 
-        {/* Driver Detail Modal */}
         {showDriverDetail && (
           <DriverDetailModal 
             driver={setup.drivers.find(d => d.id === showDriverDetail)!}
@@ -187,7 +175,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
           />
         )}
 
-        {/* Trips Overview */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrten-Übersicht</h2>
@@ -231,7 +218,6 @@ saveNotifications([...notifs, newNotif], activeUser?.companyId);
   );
 }
 
-/* ========== Quick Trip Form ========== */
 function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
   drivers: CompanyDriver[];
   vehicles: CompanyVehicle[];
@@ -352,7 +338,6 @@ function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
   );
 }
 
-/* ========== Driver Detail Modal ========== */
 function DriverDetailModal({ driver, trips, onClose, onToggleActive }: {
   driver: CompanyDriver;
   trips: Trip[];
