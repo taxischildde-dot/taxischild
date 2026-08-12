@@ -94,23 +94,34 @@ export default function SetupPage() {
             handleContinue();
           }}
         >
-          <FormField
-            id="companyName"
-            label="Unternehmen *"
-            placeholder="z. B. Stadttaxi München eG"
-            value={setup.companyName}
-            onChange={update("companyName")}
-            autoComplete="organization"
-            required
-          />
-
-          <FormField
-            id="vehicleNumber"
-            label="Fahrzeug-Nr. (optional)"
-            placeholder="z. B. M-TX 1234"
-            value={setup.vehicleNumber}
-            onChange={update("vehicleNumber")}
-          />
+          <div className="space-y-1">
+  <label className="block text-xs font-bold text-muted uppercase tracking-signage">
+    Unternehmen *
+  </label>
+  <input
+    id="companyName"
+    type="text"
+    required
+    value={setup.companyName}
+    onChange={(e) => update("companyName")(e.target.value)}
+    placeholder="z. B. Stadttaxi München eG"
+    autoComplete="organization"
+    className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+  />
+</div>
+<div className="space-y-1">
+  <label className="block text-xs font-bold text-muted uppercase tracking-signage">
+    Fahrzeug-Nr. (optional)
+  </label>
+  <input
+    id="vehicleNumber"
+    type="text"
+    value={setup.vehicleNumber}
+    onChange={(e) => update("vehicleNumber")(e.target.value)}
+    placeholder="z. B. M-TX 1234"
+    className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+  />
+</div>
 
           <div className="rounded-md border border-line p-3">
             <div className="mb-3 flex items-center justify-between">
