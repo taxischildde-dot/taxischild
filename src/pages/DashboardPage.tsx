@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getActiveUser, CompanyDriver, CompanyVehicle } from "../lib/auth-storage";
+import { getActiveUser, CompanyDriver, CompanyVehicle, generateTempPassword, createDriverAccount } from "../lib/auth-storage";
 import { loadTrips, saveTrips, Trip, createTripId, todayKey } from "../lib/trips-storage";
 import { loadSetup, saveSetup, TaxiSetup } from "../lib/setup-storage";
 import { saveNotifications, loadNotifications } from "../lib/notifications-storage";
@@ -17,7 +17,13 @@ export default function DashboardPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [showAddTrip, setShowAddTrip] = useState(false);
   const [showDriverDetail, setShowDriverDetail] = useState<string | null>(null);
+  const [showCreateDriver, setShowCreateDriver] = useState(false);
+  const [newDriverEmail, setNewDriverEmail] = useState("");
+  const [newDriverName, setNewDriverName] = useState("");
+  const [newDriverPhone, setNewDriverPhone] = useState("");
+  const [createdDriverInfo, setCreatedDriverInfo] = useState<{email: string; tempPassword: string} | null>(null);
   const [filter, setFilter] = useState<"today" | "tomorrow" | "upcoming">("today");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const user = getActiveUser();
@@ -83,6 +89,33 @@ export default function DashboardPage() {
     setSetup(next);
   };
 
+  const handleCreateDriver = () => {
+    if (!newDriverEmail.trim() || !newDriverName.trim()) {
+      setError("E-Mail und Name sind erforderlich.");
+      return;
+    }
+    const tempPassword = generateTempPassword();
+    const result = createDriverAccount({
+      ownerId: activeUser!.id,
+      email: newDriverEmail,
+      name: newDriverName,
+      phone: newDriverPhone,
+      tempPassword,
+    });
+    
+    if (!result.ok) {
+      setError(result.error ?? "Fehler beim Erstellen.");
+      return;
+    }
+    
+    setCreatedDriverInfo({ email: newDriverEmail, tempPassword });
+    setSetup(loadSetup(activeUser?.companyId));
+    setNewDriverEmail("");
+    setNewDriverName("");
+    setNewDriverPhone("");
+    setError("");
+  };
+
   if (!activeUser) return null;
 
   return (
@@ -104,9 +137,10 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* Invite Code */}
         <div className="bg-panel p-4 rounded-xl border border-line flex items-center justify-between">
           <div>
-            <p className="text-xs text-muted uppercase tracking-signage">Einladungscode (einmalig pro Fahrer)</p>
+            <p className="text-xs text-muted uppercase tracking-signage">Einladungscode</p>
             <p className="font-mono text-lg text-amber font-bold tracking-wider">{setup.inviteCode || activeUser.inviteCode}</p>
           </div>
           <button onClick={() => navigator.clipboard.writeText(setup.inviteCode || activeUser.inviteCode)} className="px-3 py-2 bg-asphalt border border-line rounded-lg text-sm text-cream hover:border-amber/50 transition">
@@ -114,6 +148,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* Drivers Grid */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrer-Status</h2>
@@ -138,13 +173,14 @@ export default function DashboardPage() {
                 </div>
               </button>
             ))}
-            <button onClick={() => navigate("/setup")} className="bg-panel p-4 rounded-xl border border-dashed border-line hover:border-amber/50 transition text-center text-muted hover:text-cream">
+            <button onClick={() => setShowCreateDriver(true)} className="bg-panel p-4 rounded-xl border border-dashed border-line hover:border-amber/50 transition text-center text-muted hover:text-cream">
               <p className="text-2xl mb-1">➕</p>
-              <p className="text-xs font-bold uppercase tracking-signage">Fahrer hinzufügen</p>
+              <p className="text-xs font-bold uppercase tracking-signage">Fahrer erstellen</p>
             </button>
           </div>
         </div>
 
+        {/* Inactive Drivers */}
         {inactiveDrivers.length > 0 && (
           <div className="bg-panel/50 p-4 rounded-xl border border-line/50">
             <p className="text-xs text-muted uppercase tracking-signage mb-3">Abwesend — automatisch ausgeblendet</p>
@@ -156,6 +192,52 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Create Driver Modal */}
+        {showCreateDriver && (
+          <div className="fixed inset-0 z-30 flex items-center justify-center p-4" onClick={() => setShowCreateDriver(false)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative bg-panel rounded-2xl w-full max-w-md border border-line shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-display text-xl font-bold tracking-signage uppercase">Neuer Fahrer</h2>
+                <button onClick={() => setShowCreateDriver(false)} className="p-2 hover:bg-asphalt rounded-lg transition text-muted">✕</button>
+              </div>
+              
+              {createdDriverInfo ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                    <p className="text-emerald-400 font-bold mb-2">✅ Fahrer erstellt!</p>
+                    <p className="text-sm text-cream mb-1">E-Mail: <span className="font-mono">{createdDriverInfo.email}</span></p>
+                    <p className="text-sm text-cream">Temp. Passwort: <span className="font-mono text-amber">{createdDriverInfo.tempPassword}</span></p>
+                  </div>
+                  <button onClick={() => { setCreatedDriverInfo(null); setShowCreateDriver(false); }} className="w-full py-3 bg-amber text-asphalt rounded-xl font-bold hover:bg-amber/90 transition">
+                    Schließen
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Name *</label>
+                    <input value={newDriverName} onChange={e => setNewDriverName(e.target.value)} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="Max Mustermann" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">E-Mail *</label>
+                    <input type="email" value={newDriverEmail} onChange={e => setNewDriverEmail(e.target.value)} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="fahrer@firma.de" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Telefon</label>
+                    <input type="tel" value={newDriverPhone} onChange={e => setNewDriverPhone(e.target.value)} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="+49..." />
+                  </div>
+                  {error && <p className="text-sm text-alert">⚠️ {error}</p>}
+                  <button onClick={handleCreateDriver} className="w-full py-3 bg-amber text-asphalt rounded-xl font-bold hover:bg-amber/90 transition shadow-lamp">
+                    Fahrer erstellen & Zugangsdaten anzeigen
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Add Trip Modal */}
         {showAddTrip && (
           <QuickTripForm 
             drivers={activeDrivers} 
@@ -166,6 +248,7 @@ export default function DashboardPage() {
           />
         )}
 
+        {/* Driver Detail Modal */}
         {showDriverDetail && (
           <DriverDetailModal 
             driver={setup.drivers.find(d => d.id === showDriverDetail)!}
@@ -175,6 +258,7 @@ export default function DashboardPage() {
           />
         )}
 
+        {/* Trips Overview */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrten-Übersicht</h2>
@@ -218,6 +302,7 @@ export default function DashboardPage() {
   );
 }
 
+/* ========== Quick Trip Form ========== */
 function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
   drivers: CompanyDriver[];
   vehicles: CompanyVehicle[];
@@ -338,6 +423,7 @@ function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
   );
 }
 
+/* ========== Driver Detail Modal ========== */
 function DriverDetailModal({ driver, trips, onClose, onToggleActive }: {
   driver: CompanyDriver;
   trips: Trip[];
