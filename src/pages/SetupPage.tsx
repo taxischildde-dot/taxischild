@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import RoofSign from "../components/RoofSign";
-import FormField from "../components/FormField";
 import BrandFooter from "../components/BrandFooter";
 import { TaxiSetup, createVehicle, emptySetup, loadSetup, saveSetup, isSetupComplete } from "../lib/setup-storage";
 import { getActiveUser } from "../lib/auth-storage";
