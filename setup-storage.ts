@@ -33,5 +33,8 @@ export function saveSetup(setup: TaxiSetup) {
 }
 
 export function isSetupComplete(setup: TaxiSetup): boolean {
-  return Boolean(setup.companyName.trim() && setup.vehicleNumber.trim() && setup.driverName.trim());
+  return Boolean(
+    setup.companyName.trim() &&
+      setup.vehicles.some((vehicle) => vehicle.label.trim() || vehicle.registration.trim())
+  );
 }
