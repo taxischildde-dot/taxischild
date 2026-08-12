@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getActiveUser } from "../lib/auth-storage";
+import { getActiveUser, changePassword, isTempPassword } from "../lib/auth-storage";
 import { loadTrips, Trip } from "../lib/trips-storage";
 import { loadNotifications, Notification, markNotificationRead, markAllNotificationsRead } from "../lib/notifications-storage";
 import { loadPassengers, SavedPassenger } from "../lib/passengers-storage";
@@ -15,11 +15,21 @@ export default function DriverDashboardPage() {
   const [passengers, setPassengers] = useState<SavedPassenger[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [filter, setFilter] = useState<"today" | "tomorrow" | "upcoming">("today");
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changePasswordError, setChangePasswordError] = useState("");
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   useEffect(() => {
     const user = getActiveUser();
     if (!user) { navigate("/login", { replace: true }); return; }
     if (user.role === "owner") { navigate("/dashboard", { replace: true }); return; }
+    
+    if (isTempPassword(user.password)) {
+      setShowChangePassword(true);
+    }
+    
     setActiveUser(user);
     const allTrips = loadTrips();
     const myTrips = allTrips.filter(t => t.driverId === user.id || t.driverName === user.driverName);
@@ -45,16 +55,78 @@ export default function DriverDashboardPage() {
     markNotificationRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
+  
   const handleMarkAllRead = () => {
     if (!activeUser) return;
     markAllNotificationsRead(activeUser.id);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError("");
+    
+    if (!activeUser) return;
+    
+    const result = changePassword({
+      userId: activeUser.id,
+      oldPassword,
+      newPassword,
+    });
+    
+    if (!result.ok) {
+      setChangePasswordError(result.error ?? "Fehler");
+      return;
+    }
+    
+    setChangePasswordSuccess(true);
+    setOldPassword("");
+    setNewPassword("");
+    
+    setTimeout(() => {
+      setShowChangePassword(false);
+      setChangePasswordSuccess(false);
+    }, 2000);
+  };
+
   if (!activeUser) return null;
 
   return (
     <div className="min-h-dvh bg-asphalt text-cream font-body">
+      {/* Change Password Modal (First Login) */}
+      {showChangePassword && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-panel rounded-2xl w-full max-w-md border border-line shadow-2xl p-6">
+            <div className="text-center mb-6">
+              <p className="text-3xl mb-2">🔐</p>
+              <h2 className="font-display text-2xl font-bold tracking-signage uppercase text-cream">Passwort ändern</h2>
+              <p className="text-sm text-muted mt-1">Aus Sicherheitsgründen müssen Sie Ihr temporäres Passwort ändern.</p>
+            </div>
+            
+            {changePasswordSuccess ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                <p className="text-emerald-400 font-bold">✅ Passwort geändert!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Aktuelles Passwort</label>
+                  <input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="Temporäres Passwort" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Neues Passwort</label>
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="Mindestens 4 Zeichen" minLength={4} required />
+                </div>
+                {changePasswordError && <p className="text-sm text-alert">⚠️ {changePasswordError}</p>}
+                <button type="submit" className="w-full py-3 bg-amber text-asphalt rounded-xl font-bold hover:bg-amber/90 transition shadow-lamp">
+                  Passwort speichern
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-20 bg-panel/95 backdrop-blur border-b border-line">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
