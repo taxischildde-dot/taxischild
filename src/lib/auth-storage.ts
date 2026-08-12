@@ -96,7 +96,7 @@ function createDriver(name: string): CompanyDriver {
 }
 
 export function getAllUsers(): UserAccount[] {
-  return readStorage<UserAccount[]>(USERS_KEY, []);
+  return readStorage(USERS_KEY, []);
 }
 
 export function getActiveUser(): UserAccount | null {
@@ -252,7 +252,7 @@ export function signIn(input: { email: string; password: string }): { ok: boolea
   return { ok: true, user };
 }
 
-export function updateUserProfile(userId: string, profile: Omit<AccountProfile, "companyId" | "role" | "inviteCode" | "vehicles" | "drivers">) {
+export function updateUserProfile(userId: string, profile: Partial<AccountProfile>) {
   const users = getAllUsers();
   const nextUsers = users.map((user) => (user.id === userId ? { ...user, ...profile } : user));
   writeStorage(USERS_KEY, nextUsers);
@@ -273,7 +273,9 @@ export function signOut() {
 export function getTenantStorageScope(tenantId?: string): string {
   const activeUser = getActiveUser();
   return tenantId ?? activeUser?.companyId ?? activeUser?.id ?? "default";
-}// ========== DRIVER MANAGEMENT BY OWNER ==========
+}
+
+// ========== DRIVER MANAGEMENT BY OWNER ==========
 
 const TEMP_PASSWORD_PREFIX = "TX-TEMP-";
 
@@ -288,7 +290,7 @@ export function createDriverAccount(input: {
   phone?: string;
   tempPassword: string;
 }): { ok: boolean; user?: UserAccount; error?: string } {
-  const owner = getAllUsers().find(u => u.id === input.ownerId && u.role === "owner");
+  const owner = getAllUsers().find((u) => u.id === input.ownerId && u.role === "owner");
   if (!owner) {
     return { ok: false, error: "Nur Unternehmer können Fahrer erstellen." };
   }
@@ -343,7 +345,7 @@ export function changePassword(input: {
   newPassword: string;
 }): { ok: boolean; error?: string } {
   const users = getAllUsers();
-  const user = users.find(u => u.id === input.userId);
+  const user = users.find((u) => u.id === input.userId);
   if (!user) return { ok: false, error: "Benutzer nicht gefunden." };
   if (user.password !== input.oldPassword) {
     return { ok: false, error: "Altes Passwort ist falsch." };
@@ -352,8 +354,17 @@ export function changePassword(input: {
     return { ok: false, error: "Neues Passwort muss mindestens 4 Zeichen haben." };
   }
 
-  const nextUsers = users.map(u => u.id === input.userId ? { ...u, password: input.newPassword } : u);
+  const nextUsers = users.map((u) => (u.id === input.userId ? { ...u, password: input.newPassword } : u));
   writeStorage(USERS_KEY, nextUsers);
 
   const session = readStorage<AuthSession | null>(SESSION_KEY, null);
-  if (session?.userId ===
+  if (session?.userId === input.userId) {
+    writeStorage(SESSION_KEY, { ...session, password: input.newPassword });
+  }
+
+  return { ok: true };
+}
+
+export function isTempPassword(password: string): boolean {
+  return password.startsWith(TEMP_PASSWORD_PREFIX);
+}
