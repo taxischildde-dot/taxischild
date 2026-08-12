@@ -1,31 +1,25 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { signIn, registerAccount, getActiveUser } from "../lib/auth-storage";
 import BrandFooter from "../components/BrandFooter";
-import FormField from "../components/FormField";
-import RoofSign from "../components/RoofSign";
-import { getActiveUser, registerAccount, signIn } from "../lib/auth-storage";
-
-type AuthMode = "login" | "register";
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [vehicleNumber, setVehicleNumber] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (getActiveUser()) {
-      navigate("/dashboard", { replace: true });
+    const user = getActiveUser();
+    if (user) {
+      navigate(user.role === "driver" ? "/driver" : "/dashboard", { replace: true });
     }
   }, [navigate]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
     setSubmitting(true);
@@ -37,18 +31,16 @@ export default function AuthPage() {
         setError(result.error ?? "Login fehlgeschlagen.");
         return;
       }
-      navigate("/dashboard", { replace: true });
+      navigate(result.user?.role === "driver" ? "/driver" : "/dashboard", { replace: true });
       return;
     }
 
+    // Register: Owner only
     const result = registerAccount({
       email,
       password,
       companyName,
-      vehicleNumber,
-      driverName,
-      inviteCode,
-      role: inviteCode.trim() ? "driver" : "owner",
+      role: "owner",
     });
 
     setSubmitting(false);
@@ -61,117 +53,101 @@ export default function AuthPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-10 sm:py-14">
-      <header className="mb-8 flex flex-col items-center">
-        <RoofSign litSegments={mode === "register" ? 3 : 2} />
-      </header>
+    <div className="min-h-dvh bg-asphalt text-cream font-body flex flex-col">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-amber rounded-2xl shadow-lamp mb-4">
+              <span className="text-3xl">🚕</span>
+            </div>
+            <h1 className="font-display text-4xl font-bold tracking-signage uppercase text-cream">
+              {mode === "login" ? "TaxiSchild Login" : "Unternehmen anlegen"}
+            </h1>
+            <p className="text-muted">
+              {mode === "login"
+                ? "Melden Sie sich an, um Ihre Fahrten und Einstellungen zu sehen."
+                : "Erstellen Sie Ihr Unternehmen. Fahrer werden später im Dashboard hinzugefügt."}
+            </p>
+          </div>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between rounded-full border border-line bg-panel p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              setError("");
-            }}
-            className={`flex-1 rounded-full px-3 py-2 font-mono text-xs uppercase tracking-signage transition-colors ${
-              mode === "login" ? "bg-amber text-asphalt" : "text-muted"
-            }`}
-          >
-            Einloggen
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("register");
-              setError("");
-            }}
-            className={`flex-1 rounded-full px-3 py-2 font-mono text-xs uppercase tracking-signage transition-colors ${
-              mode === "register" ? "bg-amber text-asphalt" : "text-muted"
-            }`}
-          >
-            Konto anlegen
-          </button>
-        </div>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="bg-panel border border-line rounded-2xl p-6 space-y-5">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-muted uppercase tracking-signage">E-Mail *</label>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+                placeholder="name@firma.de"
+              />
+            </div>
 
-        <div className="rounded-lg border border-line bg-panel p-5">
-          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            {mode === "login" ? "TaxiSchild Login" : "Unternehmen anlegen"}
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            {mode === "login"
-              ? "Melden Sie sich an, um nur Ihre eigenen Fahrten, Berichte und Einstellungen zu sehen."
-              : "Erstellen Sie Ihr eigenes Konto. Jede Firma und jeder Fahrer erhält einen geschützten Bereich."}
-          </p>
-
-          <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
-            <FormField
-              id="email"
-              label="E-Mail"
-              placeholder="name@firma.de"
-              value={email}
-              onChange={setEmail}
-              autoComplete="email"
-            />
-            <FormField
-              id="password"
-              label="Passwort"
-              placeholder="Mindestens 4 Zeichen"
-              value={password}
-              onChange={setPassword}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-            />
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-muted uppercase tracking-signage">Passwort *</label>
+              <input
+                required
+                type="password"
+                minLength={4}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+                placeholder="Mindestens 4 Zeichen"
+              />
+            </div>
 
             {mode === "register" && (
-              <>
-                <FormField
-                  id="companyName"
-                  label="Unternehmen"
-                  placeholder="z. B. Stadttaxi München"
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-muted uppercase tracking-signage">Unternehmen *</label>
+                <input
+                  required
+                  type="text"
                   value={companyName}
-                  onChange={setCompanyName}
-                  autoComplete="organization"
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+                  placeholder="z. B. Stadttaxi München"
                 />
-                <FormField
-                  id="vehicleNumber"
-                  label="Fahrzeug-Nr."
-                  placeholder="z. B. M-TX 1234"
-                  value={vehicleNumber}
-                  onChange={setVehicleNumber}
-                  mono
-                />
-                <FormField
-                  id="driverName"
-                  label="Fahrername"
-                  placeholder="Vor- und Nachname"
-                  value={driverName}
-                  onChange={setDriverName}
-                  autoComplete="name"
-                />
-                <FormField
-                  id="inviteCode"
-                  label="Einladungscode (nur für Fahrer)"
-                  placeholder="TX-ABC123"
-                  value={inviteCode}
-                  onChange={setInviteCode}
-                />
-              </>
+              </div>
             )}
 
-            {error && <p className="rounded-md border border-alert/50 bg-asphalt px-3 py-2 text-sm text-alert">{error}</p>}
+            {error && (
+              <div className="p-3 bg-alert/10 border border-alert/20 rounded-lg">
+                <p className="text-sm text-alert font-medium">⚠️ {error}</p>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={submitting}
-              className="h-14 w-full rounded-md bg-amber font-display text-lg font-700 uppercase tracking-signage text-asphalt transition-opacity disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
+              className="w-full py-3.5 bg-amber text-asphalt rounded-xl font-bold text-base hover:bg-amber/90 transition shadow-lamp active:scale-[0.98] uppercase tracking-signage disabled:opacity-50"
             >
-              {mode === "login" ? "Anmelden" : "Konto erstellen"}
+              {submitting ? "Bitte warten..." : mode === "login" ? "Einloggen" : "Unternehmen anlegen"}
             </button>
           </form>
-        </div>
-      </section>
 
+          {/* Toggle */}
+          <div className="text-center">
+            <button
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setError("");
+              }}
+              className="text-sm text-muted hover:text-amber transition underline underline-offset-4"
+            >
+              {mode === "login" ? "Neues Unternehmen anlegen" : "Bereits registriert? Einloggen"}
+            </button>
+          </div>
+
+          {/* Driver hint */}
+          <div className="bg-panel/50 border border-line/50 rounded-xl p-4 text-center">
+            <p className="text-sm text-muted">👤 <span className="text-cream font-medium">Fahrer?</span></p>
+            <p className="text-xs text-muted mt-1">Ihr Unternehmer erstellt Ihr Konto im Dashboard. Sie erhalten dann Ihre Zugangsdaten.</p>
+          </div>
+        </div>
+      </main>
       <BrandFooter />
-    </main>
+    </div>
   );
 }
