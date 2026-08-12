@@ -273,4 +273,87 @@ export function signOut() {
 export function getTenantStorageScope(tenantId?: string): string {
   const activeUser = getActiveUser();
   return tenantId ?? activeUser?.companyId ?? activeUser?.id ?? "default";
+}// ========== DRIVER MANAGEMENT BY OWNER ==========
+
+const TEMP_PASSWORD_PREFIX = "TX-TEMP-";
+
+export function generateTempPassword(): string {
+  return `${TEMP_PASSWORD_PREFIX}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
+
+export function createDriverAccount(input: {
+  ownerId: string;
+  email: string;
+  name: string;
+  phone?: string;
+  tempPassword: string;
+}): { ok: boolean; user?: UserAccount; error?: string } {
+  const owner = getAllUsers().find(u => u.id === input.ownerId && u.role === "owner");
+  if (!owner) {
+    return { ok: false, error: "Nur Unternehmer können Fahrer erstellen." };
+  }
+
+  const email = normalizeEmail(input.email);
+  if (!email || !input.tempPassword) {
+    return { ok: false, error: "E-Mail und Passwort sind erforderlich." };
+  }
+
+  const users = getAllUsers();
+  if (users.some((user) => user.email === email)) {
+    return { ok: false, error: "Diese E-Mail ist bereits registriert." };
+  }
+
+  const driverUser: UserAccount = {
+    id: createId("driver"),
+    email,
+    password: input.tempPassword,
+    createdAt: Date.now(),
+    companyName: owner.companyName,
+    vehicleNumber: "",
+    driverName: input.name,
+    companyId: owner.companyId,
+    role: "driver",
+    inviteCode: owner.inviteCode,
+    vehicles: owner.vehicles,
+    drivers: owner.drivers,
+  };
+
+  const newDriver: CompanyDriver = {
+    id: createId("driver-profile"),
+    name: input.name,
+    email,
+    phone: input.phone || "",
+    active: true,
+  };
+
+  const nextUsers = [...users, driverUser];
+  const nextOwnerDrivers = [...owner.drivers, newDriver];
+  const nextUsersWithOwner = nextUsers.map((candidate) =>
+    candidate.id === owner.id ? { ...candidate, drivers: nextOwnerDrivers } : candidate
+  );
+
+  writeStorage(USERS_KEY, nextUsersWithOwner);
+
+  return { ok: true, user: driverUser };
+}
+
+export function changePassword(input: {
+  userId: string;
+  oldPassword: string;
+  newPassword: string;
+}): { ok: boolean; error?: string } {
+  const users = getAllUsers();
+  const user = users.find(u => u.id === input.userId);
+  if (!user) return { ok: false, error: "Benutzer nicht gefunden." };
+  if (user.password !== input.oldPassword) {
+    return { ok: false, error: "Altes Passwort ist falsch." };
+  }
+  if (!input.newPassword || input.newPassword.length < 4) {
+    return { ok: false, error: "Neues Passwort muss mindestens 4 Zeichen haben." };
+  }
+
+  const nextUsers = users.map(u => u.id === input.userId ? { ...u, password: input.newPassword } : u);
+  writeStorage(USERS_KEY, nextUsers);
+
+  const session = readStorage<AuthSession | null>(SESSION_KEY, null);
+  if (session?.userId ===
