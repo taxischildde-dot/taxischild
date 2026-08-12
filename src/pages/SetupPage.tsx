@@ -12,16 +12,21 @@ export default function SetupPage() {
 
   useEffect(() => {
     const user = getActiveUser();
-    if (!user) { navigate("/login", { replace: true }); return; }
+    if (!user) { 
+      navigate("/login", { replace: true }); 
+      return; 
+    }
     
-    const savedSetup = loadSetup();
+    const savedSetup = loadSetup(user.companyId);
     setSetup(savedSetup);
     setHydrated(true);
   }, [navigate]);
 
   useEffect(() => {
     if (!hydrated) return;
-    saveSetup(setup);
+    const user = getActiveUser();
+    if (!user) return;
+    saveSetup(setup, user.companyId);
   }, [setup, hydrated]);
 
   const update = (field: keyof TaxiSetup) => (value: string) =>
@@ -58,17 +63,19 @@ export default function SetupPage() {
   const handleContinue = () => {
     if (!complete) return;
     
+    const user = getActiveUser();
+    if (!user) return;
+    
     const normalizedSetup: TaxiSetup = {
       ...setup,
       vehicles: setup.vehicles.length
         ? setup.vehicles
         : [createVehicle(setup.vehicleNumber || "Fahrzeug 1", setup.vehicleNumber || "")],
       defaultVehicleId: setup.defaultVehicleId || setup.vehicles[0]?.id || "",
-      // drivers يُترك فارغاً — يُنشأون من Dashboard
       drivers: [],
     };
     
-    saveSetup(normalizedSetup);
+    saveSetup(normalizedSetup, user.companyId);
     navigate("/dashboard");
   };
 
@@ -94,33 +101,34 @@ export default function SetupPage() {
           }}
         >
           <div className="space-y-1">
-  <label className="block text-xs font-bold text-muted uppercase tracking-signage">
-    Unternehmen *
-  </label>
-  <input
-    id="companyName"
-    type="text"
-    required
-    value={setup.companyName}
-    onChange={(e) => update("companyName")(e.target.value)}
-    placeholder="z. B. Stadttaxi München eG"
-    autoComplete="organization"
-    className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
-  />
-</div>
-<div className="space-y-1">
-  <label className="block text-xs font-bold text-muted uppercase tracking-signage">
-    Fahrzeug-Nr. (optional)
-  </label>
-  <input
-    id="vehicleNumber"
-    type="text"
-    value={setup.vehicleNumber}
-    onChange={(e) => update("vehicleNumber")(e.target.value)}
-    placeholder="z. B. M-TX 1234"
-    className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
-  />
-</div>
+            <label className="block text-xs font-bold text-muted uppercase tracking-signage">
+              Unternehmen *
+            </label>
+            <input
+              id="companyName"
+              type="text"
+              required
+              value={setup.companyName}
+              onChange={(e) => update("companyName")(e.target.value)}
+              placeholder="z. B. Stadttaxi München eG"
+              autoComplete="organization"
+              className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-muted uppercase tracking-signage">
+              Fahrzeug-Nr. (optional)
+            </label>
+            <input
+              id="vehicleNumber"
+              type="text"
+              value={setup.vehicleNumber}
+              onChange={(e) => update("vehicleNumber")(e.target.value)}
+              placeholder="z. B. M-TX 1234"
+              className="w-full rounded-md border border-line bg-asphalt px-3 py-3 text-lg text-cream placeholder:text-muted/50 outline-none focus:border-amber"
+            />
+          </div>
 
           <div className="rounded-md border border-line p-3">
             <div className="mb-3 flex items-center justify-between">
