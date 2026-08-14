@@ -6,8 +6,7 @@ export type TaxiSetup = {
   driverName: string;
   inviteCode: string;
   vehicles: Array<{ id: string; label: string; registration: string; notes: string }>;
-  drivers: Array<{ id: string; name: string; email: string; phone: string; active: boolean }>;
-  defaultVehicleId?: string;
+  drivers: Array<{ id: string; name: string; email?: string; phone?: string; active: boolean }>;
 };
 
 export const SETUP_STORAGE_KEY = "taxiFlotte.setup";
