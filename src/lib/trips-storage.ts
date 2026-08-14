@@ -83,3 +83,25 @@ export const statusLabels: Record<TripStatus, string> = {
 export function googleMapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
+export function updateTrip(tripId: string, updates: Partial<Trip>, tenantId?: string): Trip | null {
+  const all = loadTrips(tenantId);
+  const index = all.findIndex(t => t.id === tripId);
+  if (index === -1) return null;
+  
+  const updated = { ...all[index], ...updates, id: tripId }; // preserve id
+  all[index] = updated;
+  saveTrips(all, tenantId);
+  return updated;
+}
+
+export function deleteTrip(tripId: string, tenantId?: string): boolean {
+  const all = loadTrips(tenantId);
+  const filtered = all.filter(t => t.id !== tripId);
+  if (filtered.length === all.length) return false;
+  saveTrips(filtered, tenantId);
+  return true;
+}
+
+export function reassignTrip(tripId: string, newDriverId: string, newDriverName: string, tenantId?: string): Trip | null {
+  return updateTrip(tripId, { driverId: newDriverId, driverName: newDriverName }, tenantId);
+}
