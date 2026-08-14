@@ -335,7 +335,14 @@ export function createDriverAccount(input: {
     candidate.id === owner.id ? { ...candidate, drivers: nextOwnerDrivers } : candidate
   );
 
-  writeStorage(USERS_KEY, nextUsersWithOwner);
+   writeStorage(USERS_KEY, nextUsersWithOwner);
+
+  const setup = loadSetup(owner.companyId);
+  const updatedSetup = {
+    ...setup,
+    drivers: [...setup.drivers, newDriver]
+  };
+  saveSetup(updatedSetup, owner.companyId);
 
   return { ok: true, user: driverUser };
 }
