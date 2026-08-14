@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getActiveUser, CompanyDriver, CompanyVehicle, generateTempPassword, createDriverAccount } from "../lib/auth-storage";
-import { loadTrips, saveTrips, Trip, createTripId, todayKey } from "../lib/trips-storage";
+import { loadTrips, saveTrips, Trip, createTripId, todayKey, updateTrip, deleteTrip } from "../lib/trips-storage";
 import { loadSetup, saveSetup, TaxiSetup } from "../lib/setup-storage";
 import { saveNotifications, loadNotifications } from "../lib/notifications-storage";
 import { loadPassengers, SavedPassenger } from "../lib/passengers-storage";
@@ -24,6 +24,8 @@ export default function DashboardPage() {
   const [createdDriverInfo, setCreatedDriverInfo] = useState<{email: string; tempPassword: string} | null>(null);
   const [filter, setFilter] = useState<"today" | "tomorrow" | "upcoming">("today");
   const [error, setError] = useState("");
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [reassigningTrip, setReassigningTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
     const user = getActiveUser();
@@ -78,6 +80,7 @@ export default function DashboardPage() {
       saveNotifications([...notifs, newNotif], activeUser?.companyId);
     }
     setShowAddTrip(false);
+    setEditingTrip(null);
   };
 
   const handleEditTrip = (trip: Trip) => {
@@ -94,6 +97,7 @@ export default function DashboardPage() {
     deleteTrip(tripId, activeUser?.companyId);
     setTrips(loadTrips(activeUser?.companyId));
   };
+
   const toggleDriverActive = (driverId: string) => {
     const next = {
       ...setup,
@@ -141,7 +145,7 @@ export default function DashboardPage() {
             <p className="text-sm text-muted mt-0.5">Flottenmanagement · {activeDrivers.length} Fahrer aktiv</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowAddTrip(true)} className="px-4 py-2.5 bg-amber text-asphalt font-bold rounded-lg hover:bg-amber/90 transition shadow-lamp active:scale-95 text-sm uppercase tracking-signage">
+            <button onClick={() => { setEditingTrip(null); setShowAddTrip(true); }} className="px-4 py-2.5 bg-amber text-asphalt font-bold rounded-lg hover:bg-amber/90 transition shadow-lamp active:scale-95 text-sm uppercase tracking-signage">
               ➕ Fahrt
             </button>
             <button onClick={() => navigate("/fahrten")} className="p-2.5 rounded-lg hover:bg-asphalt transition text-muted" title="Fahrtenliste">📋</button>
@@ -151,18 +155,16 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* Invite Code */}
         <div className="bg-panel p-4 rounded-xl border border-line flex items-center justify-between">
           <div>
             <p className="text-xs text-muted uppercase tracking-signage">Einladungscode</p>
             <p className="font-mono text-lg text-amber font-bold tracking-wider">{setup.inviteCode || activeUser.inviteCode}</p>
           </div>
           <button onClick={() => navigator.clipboard.writeText(setup.inviteCode || activeUser.inviteCode)} className="px-3 py-2 bg-asphalt border border-line rounded-lg text-sm text-cream hover:border-amber/50 transition">
-            📋 Kopieren
+            Kopieren
           </button>
         </div>
 
-        {/* Drivers Grid */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrer-Status</h2>
@@ -194,7 +196,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Inactive Drivers */}
         {inactiveDrivers.length > 0 && (
           <div className="bg-panel/50 p-4 rounded-xl border border-line/50">
             <p className="text-xs text-muted uppercase tracking-signage mb-3">Abwesend — automatisch ausgeblendet</p>
@@ -206,7 +207,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Create Driver Modal */}
         {showCreateDriver && (
           <div className="fixed inset-0 z-30 flex items-center justify-center p-4" onClick={() => setShowCreateDriver(false)}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -251,18 +251,30 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Add Trip Modal */}
         {showAddTrip && (
           <QuickTripForm 
             drivers={activeDrivers} 
             vehicles={setup.vehicles} 
             passengers={loadPassengers()}
+            editingTrip={editingTrip}
             onAdd={handleAddTrip} 
-            onClose={() => setShowAddTrip(false)} 
+            onClose={() => { setShowAddTrip(false); setEditingTrip(null); }}
           />
         )}
 
-        {/* Driver Detail Modal */}
+        {reassigningTrip && (
+          <ReassignModal
+            trip={reassigningTrip}
+            drivers={activeDrivers}
+            onReassign={(tripId, driverId, driverName) => {
+              updateTrip(tripId, { driverId, driverName }, activeUser?.companyId);
+              setTrips(loadTrips(activeUser?.companyId));
+              setReassigningTrip(null);
+            }}
+            onClose={() => setReassigningTrip(null)}
+          />
+        )}
+
         {showDriverDetail && (
           <DriverDetailModal 
             driver={setup.drivers.find(d => d.id === showDriverDetail)!}
@@ -272,7 +284,6 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Trips Overview */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-xl font-bold tracking-signage uppercase text-cream">Fahrten-Übersicht</h2>
@@ -287,33 +298,36 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-3">
               {filteredTrips.map(trip => (
-               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-line">
-  <button onClick={() => handleEditTrip(trip)} className="px-3 py-1.5 bg-amber/10 text-amber rounded-lg text-xs font-bold hover:bg-amber/20 transition">
-    Bearbeiten
-  </button>
-  <button onClick={() => handleReassignTrip(trip)} className="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-500/20 transition">
-    Fahrer wechseln
-  </button>
-  <button onClick={() => handleDeleteTrip(trip.id)} className="px-3 py-1.5 bg-alert/10 text-alert rounded-lg text-xs font-bold hover:bg-alert/20 transition">
-    Löschen
-  </button>
-</div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-center min-w-[60px]">
-                      <p className="text-lg font-bold text-amber font-mono">{trip.pickupTime}</p>
-                      <StatusBadge status={trip.status} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-cream">{trip.customerName}</p>
-                      <p className="text-sm text-muted">{trip.pickupAddress} → {trip.destination}</p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted">
-                        {trip.driverName && <span>👤 {trip.driverName}</span>}
-                        {trip.vehicleLabel && <span>🚖 {trip.vehicleLabel}</span>}
-                        {trip.prebooked && <span className="text-amber">📅 Vorbestellung</span>}
+                <div key={trip.id} className="bg-panel p-4 rounded-xl border border-line hover:border-amber/30 transition">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center min-w-[60px]">
+                        <p className="text-lg font-bold text-amber font-mono">{trip.pickupTime}</p>
+                        <StatusBadge status={trip.status} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-cream">{trip.customerName}</p>
+                        <p className="text-sm text-muted">{trip.pickupAddress} → {trip.destination}</p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted">
+                          {trip.driverName && <span>👤 {trip.driverName}</span>}
+                          {trip.vehicleLabel && <span>🚖 {trip.vehicleLabel}</span>}
+                          {trip.prebooked && <span className="text-amber">📅 Vorbestellung</span>}
+                        </div>
                       </div>
                     </div>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trip.pickupAddress)}`} target="_blank" rel="noreferrer" className="p-2 bg-asphalt rounded-lg border border-line hover:border-amber/50 transition text-lg">🗺️</a>
                   </div>
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trip.pickupAddress)}`} target="_blank" rel="noreferrer" className="p-2 bg-asphalt rounded-lg border border-line hover:border-amber/50 transition text-lg">🗺️</a>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-line">
+                    <button onClick={() => handleEditTrip(trip)} className="px-3 py-1.5 bg-amber/10 text-amber rounded-lg text-xs font-bold hover:bg-amber/20 transition">
+                      Bearbeiten
+                    </button>
+                    <button onClick={() => handleReassignTrip(trip)} className="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-500/20 transition">
+                      Fahrer wechseln
+                    </button>
+                    <button onClick={() => handleDeleteTrip(trip.id)} className="px-3 py-1.5 bg-alert/10 text-alert rounded-lg text-xs font-bold hover:bg-alert/20 transition">
+                      Löschen
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -326,18 +340,27 @@ export default function DashboardPage() {
   );
 }
 
-/* ========== Quick Trip Form ========== */
-function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
+function QuickTripForm({ drivers, vehicles, passengers, editingTrip, onAdd, onClose }: {
   drivers: CompanyDriver[];
   vehicles: CompanyVehicle[];
   passengers: SavedPassenger[];
+  editingTrip: Trip | null;
   onAdd: (trip: Trip) => void;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
-    customerName: "", phoneNumber: "", pickupAddress: "", destination: "",
-    pickupTime: "", dueTime: "", date: todayKey(), driverId: "", vehicleId: "",
-    notes: "", prebooked: false, wheelchair: false,
+    customerName: editingTrip?.customerName || "",
+    phoneNumber: editingTrip?.phoneNumber || "",
+    pickupAddress: editingTrip?.pickupAddress || "",
+    destination: editingTrip?.destination || "",
+    pickupTime: editingTrip?.pickupTime || "",
+    dueTime: editingTrip?.dueTime || "",
+    date: editingTrip?.date || todayKey(),
+    driverId: editingTrip?.driverId || "",
+    vehicleId: editingTrip?.vehicleId || "",
+    notes: editingTrip?.notes || "",
+    prebooked: editingTrip?.prebooked || false,
+    wheelchair: editingTrip?.wheelchair || false,
   });
 
   const handlePassengerSelect = (id: string) => {
@@ -350,14 +373,27 @@ function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
     const driver = drivers.find(d => d.id === form.driverId);
     const vehicle = vehicles.find(v => v.id === form.vehicleId);
     const trip: Trip = {
-      id: createTripId(), date: form.date, pickupTime: form.pickupTime, dueTime: form.dueTime,
-      bookingTime: "", customerName: form.customerName, phoneNumber: form.phoneNumber,
-      pickupAddress: form.pickupAddress, destination: form.destination,
-      wheelchair: form.wheelchair, prebooked: form.prebooked, price: "", notes: form.notes,
-      status: "geplant", createdAt: Date.now(),
-      driverId: form.driverId || undefined, vehicleId: form.vehicleId || undefined,
-      driverName: driver?.name, vehicleLabel: vehicle?.registration || vehicle?.label,
-      passengerCount: 1, serviceType: "standard",
+      id: editingTrip?.id || createTripId(),
+      date: form.date,
+      pickupTime: form.pickupTime,
+      dueTime: form.dueTime,
+      bookingTime: editingTrip?.bookingTime || "",
+      customerName: form.customerName,
+      phoneNumber: form.phoneNumber,
+      pickupAddress: form.pickupAddress,
+      destination: form.destination,
+      wheelchair: form.wheelchair,
+      prebooked: form.prebooked,
+      price: editingTrip?.price || "",
+      notes: form.notes,
+      status: editingTrip?.status || "geplant",
+      createdAt: editingTrip?.createdAt || Date.now(),
+      driverId: form.driverId || undefined,
+      vehicleId: form.vehicleId || undefined,
+      driverName: driver?.name,
+      vehicleLabel: vehicle?.registration || vehicle?.label,
+      passengerCount: editingTrip?.passengerCount || 1,
+      serviceType: editingTrip?.serviceType || "standard",
     };
     onAdd(trip);
   };
@@ -367,7 +403,7 @@ function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-panel rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-line shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-panel border-b border-line p-5 flex items-center justify-between z-10 rounded-t-2xl">
-          <h2 className="font-display text-xl font-bold tracking-signage uppercase">Neue Fahrt</h2>
+          <h2 className="font-display text-xl font-bold tracking-signage uppercase">{editingTrip ? "Fahrt bearbeiten" : "Neue Fahrt"}</h2>
           <button onClick={onClose} className="p-2 hover:bg-asphalt rounded-lg transition text-muted">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -393,118 +429,4 @@ function QuickTripForm({ drivers, vehicles, passengers, onAdd, onClose }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Datum *</label>
-              <input required type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Abholzeit *</label>
-              <input required type="time" value={form.pickupTime} onChange={e => setForm(p => ({ ...p, pickupTime: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Abholadresse *</label>
-            <input required value={form.pickupAddress} onChange={e => setForm(p => ({ ...p, pickupAddress: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber" placeholder="Musterstraße 1, Berlin" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Ziel *</label>
-            <input required value={form.destination} onChange={e => setForm(p => ({ ...p, destination: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber font-mono uppercase tracking-wider" placeholder="Flughafen BER" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Fahrer *</label>
-              <select required value={form.driverId} onChange={e => setForm(p => ({ ...p, driverId: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber">
-                <option value="">— Fahrer wählen —</option>
-                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Fahrzeug</label>
-              <select value={form.vehicleId} onChange={e => setForm(p => ({ ...p, vehicleId: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber">
-                <option value="">— Fahrzeug wählen —</option>
-                {vehicles.map(v => <option key={v.id} value={v.id}>{v.label} ({v.registration})</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-muted uppercase tracking-signage mb-1.5">Notizen</label>
-            <textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="w-full p-3 bg-asphalt border border-line rounded-lg text-cream outline-none focus:border-amber resize-none" placeholder="Besonderheiten..." />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
-              <input type="checkbox" checked={form.prebooked} onChange={e => setForm(p => ({ ...p, prebooked: e.target.checked }))} className="accent-amber w-4 h-4" />
-              Vorbestellung
-            </label>
-            <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
-              <input type="checkbox" checked={form.wheelchair} onChange={e => setForm(p => ({ ...p, wheelchair: e.target.checked }))} className="accent-amber w-4 h-4" />
-              Rollstuhl
-            </label>
-          </div>
-          <button type="submit" className="w-full py-3.5 bg-amber text-asphalt rounded-xl font-bold text-base hover:bg-amber/90 transition shadow-lamp active:scale-[0.98] uppercase tracking-signage">
-            Fahrt speichern & Fahrer benachrichtigen
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ========== Driver Detail Modal ========== */
-function DriverDetailModal({ driver, trips, onClose, onToggleActive }: {
-  driver: CompanyDriver;
-  trips: Trip[];
-  onClose: () => void;
-  onToggleActive: () => void;
-}) {
-  const upcoming = trips.filter(t => t.date >= todayKey() && t.status !== "storniert" && t.status !== "erledigt").sort((a, b) => a.date.localeCompare(b.date) || a.pickupTime.localeCompare(b.pickupTime));
-  return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-panel rounded-2xl w-full max-w-lg border border-line shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b border-line flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-asphalt border border-line flex items-center justify-center text-2xl">👤</div>
-            <div>
-              <h2 className="font-display text-2xl font-bold tracking-signage text-cream">{driver.name}</h2>
-              <p className="text-sm text-muted">{driver.email || "Keine E-Mail"} · {driver.phone || "Keine Telefonnummer"}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-asphalt rounded-lg transition text-muted">✕</button>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-asphalt p-3 rounded-xl border border-line text-center">
-              <p className="text-2xl font-bold text-amber font-display">{trips.filter(t => t.date === todayKey()).length}</p>
-              <p className="text-[10px] text-muted uppercase tracking-signage mt-1">Heute</p>
-            </div>
-            <div className="bg-asphalt p-3 rounded-xl border border-line text-center">
-              <p className="text-2xl font-bold text-emerald-400 font-display">{trips.filter(t => t.status === "erledigt").length}</p>
-              <p className="text-[10px] text-muted uppercase tracking-signage mt-1">Erledigt</p>
-            </div>
-            <div className="bg-asphalt p-3 rounded-xl border border-line text-center">
-              <p className="text-2xl font-bold text-alert font-display">{trips.filter(t => t.status === "storniert").length}</p>
-              <p className="text-[10px] text-muted uppercase tracking-signage mt-1">Storniert</p>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-display text-lg font-bold tracking-signage uppercase text-cream mb-3">Kommende Fahrten</h3>
-            {upcoming.length === 0 ? <p className="text-muted text-sm">Keine kommenden Fahrten</p> : (
-              <div className="space-y-2">
-                {upcoming.map(t => (
-                  <div key={t.id} className="flex items-center justify-between p-3 bg-asphalt rounded-lg border border-line">
-                    <div>
-                      <p className="font-bold text-cream text-sm">{t.customerName}</p>
-                      <p className="text-xs text-muted">{t.date} · {t.pickupTime} · {t.pickupAddress}</p>
-                    </div>
-                    <StatusBadge status={t.status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <button onClick={onToggleActive} className={`w-full py-3 rounded-xl font-bold text-sm uppercase tracking-signage transition ${driver.active ? "bg-alert/10 text-alert border border-alert/20 hover:bg-alert/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"}`}>
-            {driver.active ? "🛑 Als abwesend markieren (Urlaub / Krank)" : "✅ Als aktiv markieren"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+              <input required type="date" value={form.date} onChange={e => set
