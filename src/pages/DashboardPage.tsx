@@ -80,6 +80,20 @@ export default function DashboardPage() {
     setShowAddTrip(false);
   };
 
+  const handleEditTrip = (trip: Trip) => {
+    setEditingTrip(trip);
+    setShowAddTrip(true);
+  };
+
+  const handleReassignTrip = (trip: Trip) => {
+    setReassigningTrip(trip);
+  };
+
+  const handleDeleteTrip = (tripId: string) => {
+    if (!confirm("Sind Sie sicher? Diese Fahrt wird gelöscht.")) return;
+    deleteTrip(tripId, activeUser?.companyId);
+    setTrips(loadTrips(activeUser?.companyId));
+  };
   const toggleDriverActive = (driverId: string) => {
     const next = {
       ...setup,
@@ -273,7 +287,17 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-3">
               {filteredTrips.map(trip => (
-                <div key={trip.id} className="bg-panel p-4 rounded-xl border border-line hover:border-amber/30 transition flex items-center justify-between">
+               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-line">
+  <button onClick={() => handleEditTrip(trip)} className="px-3 py-1.5 bg-amber/10 text-amber rounded-lg text-xs font-bold hover:bg-amber/20 transition">
+    Bearbeiten
+  </button>
+  <button onClick={() => handleReassignTrip(trip)} className="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-500/20 transition">
+    Fahrer wechseln
+  </button>
+  <button onClick={() => handleDeleteTrip(trip.id)} className="px-3 py-1.5 bg-alert/10 text-alert rounded-lg text-xs font-bold hover:bg-alert/20 transition">
+    Löschen
+  </button>
+</div>
                   <div className="flex items-center gap-4">
                     <div className="text-center min-w-[60px]">
                       <p className="text-lg font-bold text-amber font-mono">{trip.pickupTime}</p>
