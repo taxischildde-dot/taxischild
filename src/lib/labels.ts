@@ -23,6 +23,8 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Bar',
   card: 'Karte',
   invoice: 'Rechnung',
+  health_insurance: 'Krankenkasse / Kostenträger',
+  municipality_school: 'Gemeinde / Schulbeförderung',
 };
 
 export const VEHICLE_STATUS_LABEL: Record<VehicleStatus, string> = {

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { User, Vehicle } from '../../types';
 import { VEHICLE_STATUS_COLOR, VEHICLE_STATUS_LABEL } from '../../lib/labels';
 import { Badge } from '../ui/Card';
@@ -6,13 +5,13 @@ import { EditIcon, FleetIcon, TrashIcon, UsersIcon } from '../ui/Icons';
 
 export function VehicleCard({
   vehicle,
-  driver,
+  responsibleDrivers,
   canManage,
   onEdit,
   onDelete,
 }: {
   vehicle: Vehicle;
-  driver?: User;
+  responsibleDrivers: User[];
   canManage?: boolean;
   onEdit?: (v: Vehicle) => void;
   onDelete?: (v: Vehicle) => void;
@@ -31,11 +30,14 @@ export function VehicleCard({
           {vehicle.model}
           {vehicle.year ? ` · ${vehicle.year}` : ''}
         </p>
-        {driver && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-ink/45">
-            <UsersIcon width={13} height={13} /> {driver.name}
-          </p>
-        )}
+        <p className="mt-1 flex items-start gap-1 text-xs font-semibold text-ink/55">
+          <UsersIcon width={13} height={13} className="mt-0.5 shrink-0" />
+          {responsibleDrivers.length > 0 ? (
+            <span className="truncate">{responsibleDrivers.map((driver) => driver.name).join(' · ')}</span>
+          ) : (
+            <span className="text-ink/40">Kein verantwortlicher Fahrer</span>
+          )}
+        </p>
       </div>
       {canManage && (
         <div className="flex shrink-0 items-center gap-1.5">

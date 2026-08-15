@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getResponsibleDriverIds } from '../../types';
 import { db } from '../../lib/db';
 import { toDateKey, formatDateKey, formatMoney } from '../../lib/format';
 import { exportFahrberichtPdf } from '../../lib/pdf';
@@ -32,8 +33,12 @@ export function FahrberichtCard() {
   const dailyLog = driver ? db.dailyLogs.byDriverAndDate(company.id, driver.id, dateKey) : undefined;
   const vehicle = dailyLog?.vehicleId
     ? db.vehicles.getForCompany(company.id, dailyLog.vehicleId)
-    : db.vehicles.byCompany(company.id).find((v) => v.assignedDriverId === driver?.id);
-  const total = trips.filter((t) => t.status !== 'cancelled').reduce((s, t) => s + t.price, 0);
+    : db.vehicles
+        .byCompany(company.id)
+        .find((v) => (driver ? getResponsibleDriverIds(v).includes(driver.id) : false));
+  const activeTrips = trips.filter((t) => t.status !== 'cancelled');
+  const total = activeTrips.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
+  const openPriceCount = activeTrips.filter((trip) => trip.price == null).length;
 
   const handleExport = () => {
     if (!driver) return;
@@ -77,7 +82,8 @@ export function FahrberichtCard() {
       </div>
 
       <p className="mt-3 text-sm text-ink/60">
-        {trips.length} Fahrt(en) · Summe {formatMoney(total)}
+        {trips.length} Fahrt(en) · Bekannte Summe {formatMoney(total)}
+        {openPriceCount > 0 ? ` · ${openPriceCount} Preis(e) offen` : ''}
       </p>
 
       <Button

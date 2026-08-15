@@ -36,7 +36,7 @@ export type TripStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
 // Wer die Buchung tatsächlich im System erfasst hat
 export type EntrySource = 'central' | 'driver_phone';
 
-export type PaymentMethod = 'cash' | 'card' | 'invoice';
+export type PaymentMethod = 'cash' | 'card' | 'invoice' | 'health_insurance' | 'municipality_school';
 
 export interface Trip {
   id: string;
@@ -50,7 +50,8 @@ export interface Trip {
   destinationCode?: string; // Kürzel wie im Fahrplan des Auftraggebers, z. B. "ROW"
   scheduledAt: string; // ISO datetime - tatsächliche Abholzeit
   dueAt?: string; // ISO datetime - Fällig-/Spätestzeit laut Auftraggeber, falls abweichend
-  price: number;
+  /** Optional when the driver does not know the final billing amount yet. */
+  price?: number;
   currency: string;
   status: TripStatus;
   cancellationReason?: string;
@@ -71,9 +72,19 @@ export interface Vehicle {
   model: string;
   year?: number;
   status: VehicleStatus;
+  /** New format: one or two drivers responsible for this vehicle. */
+  assignedDriverIds?: string[];
+  /** Legacy single-driver field kept so existing localStorage records remain readable. */
   assignedDriverId?: string;
   notes?: string;
   createdAt: string;
+}
+
+/** Normalizes both the current and legacy vehicle assignment shapes. */
+export function getResponsibleDriverIds(vehicle: Pick<Vehicle, 'assignedDriverIds' | 'assignedDriverId'>): string[] {
+  const ids = vehicle.assignedDriverIds?.filter(Boolean) ?? [];
+  if (ids.length > 0) return ids.slice(0, 2);
+  return vehicle.assignedDriverId ? [vehicle.assignedDriverId] : [];
 }
 
 // Ein Tagesdatensatz je Fahrer — deckt sowohl den Fahrbericht (Kilometerstände)

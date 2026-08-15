@@ -51,7 +51,7 @@ export function seedDemoAndLogin(): void {
       model: 'Mercedes E-Klasse',
       year: 2021,
       status: 'active',
-      assignedDriverId: driver1.id,
+      assignedDriverIds: [driver1.id, driver2.id],
     });
     const v2 = db.vehicles.create({
       companyId,
@@ -59,7 +59,7 @@ export function seedDemoAndLogin(): void {
       model: 'VW Passat',
       year: 2019,
       status: 'active',
-      assignedDriverId: driver2.id,
+      assignedDriverIds: [driver2.id],
     });
     db.vehicles.create({
       companyId,

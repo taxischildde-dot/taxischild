@@ -52,8 +52,8 @@ export default function DashboardPage() {
   );
   const unassignedTrips = trips.filter((t) => !t.driverId && t.status !== 'cancelled');
 
-  const todayRevenue = todayCompleted.reduce((sum, t) => sum + t.price, 0);
-  const monthRevenue = monthCompleted.reduce((sum, t) => sum + t.price, 0);
+  const todayRevenue = todayCompleted.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
+  const monthRevenue = monthCompleted.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
   const activeVehicles = vehicles.filter((v) => v.status === 'active').length;
 
   const activeTrips = trips.filter((t) => t.status === 'scheduled' || t.status === 'ongoing').slice(0, 6);
@@ -68,10 +68,10 @@ export default function DashboardPage() {
       <div className="space-y-5 px-4 pt-4">
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Fahrten heute" value={String(todayTrips.length)} tone="dark" />
-          <StatCard label="Umsatz heute" value={formatMoney(todayRevenue)} tone="amber" />
+          <StatCard label="Umsatz heute (bekannt)" value={formatMoney(todayRevenue)} tone="amber" />
           {user?.role === 'admin' ? (
             <>
-              <StatCard label="Umsatz Monat" value={formatMoney(monthRevenue)} />
+              <StatCard label="Umsatz Monat (bekannt)" value={formatMoney(monthRevenue)} />
               <StatCard
                 label="Fahrzeuge aktiv"
                 value={`${activeVehicles} / ${vehicles.length}`}
@@ -80,7 +80,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <StatCard label="Umsatz Monat" value={formatMoney(monthRevenue)} />
+              <StatCard label="Umsatz Monat (bekannt)" value={formatMoney(monthRevenue)} />
               <StatCard label="Fahrten abgeschlossen" value={String(completedTrips.length)} />
             </>
           )}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import type { Vehicle, VehicleStatus } from '../types';
+import { getResponsibleDriverIds } from '../types';
+import type { User, Vehicle, VehicleStatus } from '../types';
 import { TopBar } from '../components/layout/TopBar';
 import { VehicleCard } from '../components/fleet/VehicleCard';
 import { EmptyState } from '../components/ui/Card';
@@ -11,7 +12,14 @@ import { Field, Input, Select } from '../components/ui/Field';
 import { FleetIcon, PlusIcon } from '../components/ui/Icons';
 import { VEHICLE_STATUS_LABEL } from '../lib/labels';
 
-const emptyForm = { plate: '', model: '', year: '', status: 'active' as VehicleStatus, assignedDriverId: '', notes: '' };
+const emptyForm = {
+  plate: '',
+  model: '',
+  year: '',
+  status: 'active' as VehicleStatus,
+  assignedDriverIds: [] as string[],
+  notes: '',
+};
 
 export default function FleetPage() {
   const { user, company } = useAuth();
@@ -39,7 +47,7 @@ export default function FleetPage() {
       model: v.model,
       year: v.year ? String(v.year) : '',
       status: v.status,
-      assignedDriverId: v.assignedDriverId ?? '',
+      assignedDriverIds: getResponsibleDriverIds(v),
       notes: v.notes ?? '',
     });
     setModalOpen(true);
@@ -61,7 +69,9 @@ export default function FleetPage() {
       model: form.model.trim(),
       year: form.year ? Number(form.year) : undefined,
       status: form.status,
-      assignedDriverId: form.assignedDriverId || undefined,
+      assignedDriverIds: form.assignedDriverIds.length > 0 ? form.assignedDriverIds : undefined,
+      // Clear the legacy field as well, so older localStorage records can be unassigned cleanly.
+      assignedDriverId: undefined,
       notes: form.notes.trim() || undefined,
     };
     if (editing) {
@@ -96,7 +106,13 @@ export default function FleetPage() {
               <VehicleCard
                 key={v.id}
                 vehicle={v}
-                driver={v.assignedDriverId && company ? db.users.getForCompany(company.id, v.assignedDriverId) : undefined}
+                responsibleDrivers={
+                  company
+                    ? getResponsibleDriverIds(v)
+                        .map((driverId) => db.users.getForCompany(company.id, driverId))
+                        .filter((driver): driver is User => Boolean(driver))
+                    : []
+                }
                 canManage={canManage}
                 onEdit={openEdit}
                 onDelete={handleDelete}
@@ -135,19 +151,58 @@ export default function FleetPage() {
               </Select>
             </Field>
           </div>
-          <Field label="Zuständiger Fahrer" hint="optional">
-            <Select
-              value={form.assignedDriverId}
-              onChange={(e) => setForm({ ...form, assignedDriverId: e.target.value })}
-            >
-              <option value="">Kein Fahrer zugewiesen</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div>
+            <div className="mb-1.5 flex items-baseline gap-1 text-sm font-semibold text-ink/80">
+              Zuständige Fahrer
+            </div>
+            <div className="space-y-2 rounded-xl border border-cream-400 bg-white/70 p-3">
+              {drivers.length === 0 ? (
+                <p className="text-sm text-ink/50">Legen Sie zuerst Fahrer im Benutzerbereich an.</p>
+              ) : (
+                drivers.map((driver) => {
+                  const selected = form.assignedDriverIds.includes(driver.id);
+                  const limitReached = form.assignedDriverIds.length >= 2 && !selected;
+                  return (
+                    <label
+                      key={driver.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition ${
+                        limitReached ? 'cursor-not-allowed opacity-45' : 'hover:bg-cream-100'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={limitReached}
+                        onChange={() =>
+                          setForm((current) => ({
+                            ...current,
+                            assignedDriverIds: selected
+                              ? current.assignedDriverIds.filter((id) => id !== driver.id)
+                              : [...current.assignedDriverIds, driver.id],
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-cream-400 accent-amber-500"
+                      />
+                      <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{driver.name}</span>
+                      {selected && <span className="text-xs font-bold text-amber-700">Verantwortlich</span>}
+                    </label>
+                  );
+                })
+              )}
+              <div className="flex items-center justify-between gap-3 border-t border-cream-400/70 pt-2">
+                <span className="text-xs text-ink/50">Bis zu zwei Fahrer pro Fahrzeug</span>
+                {form.assignedDriverIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, assignedDriverIds: [] }))}
+                    className="text-xs font-bold text-danger hover:underline"
+                  >
+                    Zuweisung aufheben
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <Field label="Technische Notizen" hint="optional">
             <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="z. B. Ölwechsel fällig" />
           </Field>
