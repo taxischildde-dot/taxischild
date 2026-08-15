@@ -57,6 +57,48 @@ describe('local company data boundaries', () => {
     expect(db.trips.getForCompany(firstCompany.id, trip.id)?.status).toBe('scheduled');
   });
 
+  it('stores a municipality-funded booking without requiring the final price', () => {
+    const company = db.companies.create('SchulTaxi Nord');
+    const trip = db.trips.create({
+      companyId: company.id,
+      customerName: 'Schulbeförderung',
+      pickupAddress: 'Schule',
+      destinationAddress: 'Wohnort',
+      scheduledAt: '2026-08-16T07:30:00.000Z',
+      currency: 'EUR',
+      status: 'scheduled',
+      paymentMethod: 'municipality_school',
+      entrySource: 'central',
+      createdBy: 'admin-1',
+    });
+
+    expect(trip.price).toBeUndefined();
+    expect(db.trips.getForCompany(company.id, trip.id)?.paymentMethod).toBe('municipality_school');
+  });
+
+  it('supports two responsible drivers and clears assignments only in the owning company', () => {
+    const firstCompany = db.companies.create('Nord Taxi');
+    const secondCompany = db.companies.create('Süd Taxi');
+    const vehicle = db.vehicles.create({
+      companyId: firstCompany.id,
+      plate: 'WL-TX 404',
+      model: 'VW Caddy',
+      status: 'active',
+      assignedDriverIds: ['driver-1', 'driver-2'],
+    });
+
+    expect(db.vehicles.getForCompany(firstCompany.id, vehicle.id)?.assignedDriverIds).toEqual([
+      'driver-1',
+      'driver-2',
+    ]);
+    expect(db.vehicles.updateForCompany(secondCompany.id, vehicle.id, { assignedDriverIds: [] })).toBeUndefined();
+    expect(db.vehicles.updateForCompany(firstCompany.id, vehicle.id, { assignedDriverIds: undefined })).toMatchObject({
+      id: vehicle.id,
+      companyId: firstCompany.id,
+    });
+    expect(db.vehicles.getForCompany(firstCompany.id, vehicle.id)?.assignedDriverIds).toBeUndefined();
+  });
+
   it('keeps daily logs separated by both company and driver', () => {
     const firstCompany = db.companies.create('Nord Taxi');
     const secondCompany = db.companies.create('Süd Taxi');

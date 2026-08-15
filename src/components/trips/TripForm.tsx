@@ -36,7 +36,7 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
   const [dueAt, setDueAt] = useState(
     existingTrip?.dueAt ? toLocalInputValue(new Date(existingTrip.dueAt)) : '',
   );
-  const [price, setPrice] = useState(existingTrip ? String(existingTrip.price) : '');
+  const [price, setPrice] = useState(existingTrip?.price != null ? String(existingTrip.price) : '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(existingTrip?.paymentMethod ?? 'cash');
   const [driverId, setDriverId] = useState(existingTrip?.driverId ?? (user?.role === 'driver' ? user.id : ''));
   const [vehicleId, setVehicleId] = useState(existingTrip?.vehicleId ?? '');
@@ -52,9 +52,10 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
       setError('Bitte Kundenname, Abholort und Ziel ausfüllen');
       return;
     }
-    const numericPrice = parseFloat(price.replace(',', '.'));
-    if (isNaN(numericPrice) || numericPrice < 0) {
-      setError('Bitte einen gültigen Preis eingeben');
+    const normalizedPrice = price.trim().replace(',', '.');
+    const numericPrice = normalizedPrice ? parseFloat(normalizedPrice) : undefined;
+    if (normalizedPrice && (numericPrice == null || isNaN(numericPrice) || numericPrice < 0)) {
+      setError('Bitte einen gültigen Preis eingeben oder das Feld leer lassen');
       return;
     }
     // Fahrer ist nur für den Fahrer selbst verpflichtend — die Geschäftsführung
@@ -152,11 +153,11 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
             onChange={(e) => setScheduledAt(e.target.value)}
           />
         </Field>
-        <Field label="Preis (EUR)" required>
+        <Field label="Preis (EUR)" hint="optional — kann später durch die Geschäftsführung ergänzt werden">
           <Input
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder="0,00"
+            placeholder="Preis offen"
             inputMode="decimal"
           />
         </Field>

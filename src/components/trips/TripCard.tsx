@@ -82,7 +82,7 @@ export function TripCard({ trip, driver, vehicle, showDriver, onAdvance, onCance
 
       <div className="flex items-center justify-between gap-2 px-4 py-3">
         <span className="font-meter text-xl font-bold tabular-nums text-amber-600">
-          {formatMoney(trip.price, trip.currency)}
+          {trip.price != null ? formatMoney(trip.price, trip.currency) : 'Preis offen'}
         </span>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {onAssign && isUnassigned && trip.status === 'scheduled' && (

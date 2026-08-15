@@ -42,11 +42,12 @@ export default function ReportsPage() {
   }, [scopedTrips, period]);
 
   const completed = filteredTrips.filter((t) => t.status === 'completed');
-  const totalRevenue = completed.reduce((s, t) => s + t.price, 0);
-  const avgPrice = completed.length ? totalRevenue / completed.length : 0;
+  const completedWithPrice = completed.filter((t) => t.price != null);
+  const totalRevenue = completedWithPrice.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
+  const openPriceCount = filteredTrips.filter((t) => t.status !== 'cancelled' && t.price == null).length;
 
-  const byPayment = completed.reduce<Record<string, number>>((acc, t) => {
-    acc[t.paymentMethod] = (acc[t.paymentMethod] ?? 0) + t.price;
+  const byPayment = completedWithPrice.reduce<Record<string, number>>((acc, trip) => {
+    acc[trip.paymentMethod] = (acc[trip.paymentMethod] ?? 0) + (trip.price ?? 0);
     return acc;
   }, {});
 
@@ -87,8 +88,8 @@ export default function ReportsPage() {
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Anzahl Fahrten" value={String(filteredTrips.length)} tone="dark" />
           <StatCard label="Abgeschlossen" value={String(completed.length)} />
-          <StatCard label="Gesamtumsatz" value={formatMoney(totalRevenue)} tone="amber" />
-          <StatCard label="Ø Preis pro Fahrt" value={formatMoney(avgPrice)} />
+          <StatCard label="Umsatz (bekannt)" value={formatMoney(totalRevenue)} tone="amber" />
+          <StatCard label="Preise offen" value={String(openPriceCount)} />
         </div>
 
         {Object.keys(byPayment).length > 0 && (
@@ -130,7 +131,7 @@ export default function ReportsPage() {
                     </p>
                   </div>
                   <span className="font-meter shrink-0 font-bold tabular-nums text-ink/80">
-                    {formatMoney(t.price, t.currency)}
+                    {t.price != null ? formatMoney(t.price, t.currency) : 'Preis offen'}
                   </span>
                 </div>
               ))}

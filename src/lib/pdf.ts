@@ -13,6 +13,8 @@ const PAYMENT_LABEL_DE: Record<Trip['paymentMethod'], string> = {
   cash: 'Bar',
   card: 'Karte',
   invoice: 'Rechnung',
+  health_insurance: 'Krankenkasse / Kostenträger',
+  municipality_school: 'Gemeinde / Schulbeförderung',
 };
 
 const STATUS_LABEL_DE: Record<Trip['status'], string> = {
@@ -51,10 +53,12 @@ export function exportTripsReportPdf(params: {
   doc.text(`Erstellt am: ${new Date().toLocaleString('de-DE')}`, 14, 33);
 
   const completed = trips.filter((t) => t.status === 'completed');
-  const totalRevenue = completed.reduce((s, t) => s + t.price, 0);
+  const completedWithPrice = completed.filter((t) => t.price != null);
+  const totalRevenue = completedWithPrice.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
+  const openPriceCount = trips.filter((t) => t.status !== 'cancelled' && t.price == null).length;
   const byPayment: Record<string, number> = {};
-  completed.forEach((t) => {
-    byPayment[t.paymentMethod] = (byPayment[t.paymentMethod] ?? 0) + t.price;
+  completedWithPrice.forEach((trip) => {
+    byPayment[trip.paymentMethod] = (byPayment[trip.paymentMethod] ?? 0) + (trip.price ?? 0);
   });
 
   doc.setFontSize(11);
@@ -62,7 +66,7 @@ export function exportTripsReportPdf(params: {
   doc.text(
     `Fahrten gesamt: ${trips.length}   |   Abgeschlossen: ${completed.length}   |   Umsatz: ${totalRevenue.toFixed(
       2,
-    )} EUR`,
+    )} EUR (bekannt)   |   Preise offen: ${openPriceCount}`,
     14,
     41,
   );
@@ -88,7 +92,7 @@ export function exportTripsReportPdf(params: {
       PAYMENT_LABEL_DE[t.paymentMethod],
       STATUS_LABEL_DE[t.status],
       ENTRY_LABEL_DE[t.entrySource],
-      t.price.toFixed(2),
+      t.price != null ? t.price.toFixed(2) : 'offen',
     ]),
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [23, 22, 21], textColor: [244, 236, 221] },
@@ -130,7 +134,9 @@ export function exportFahrberichtPdf(params: {
   doc.text(`Fahrer: ${driver.name}${driver.employeeNumber ? '   |   Fahrer-Nr.: ' + driver.employeeNumber : ''}`, 14, 36);
   doc.text(`Fahrzeug: ${vehicle ? `${vehicle.plate} (${vehicle.model})` : '-'}`, 14, 41.5);
 
-  const total = trips.filter((t) => t.status !== 'cancelled').reduce((s, t) => s + t.price, 0);
+  const activeTrips = trips.filter((t) => t.status !== 'cancelled');
+  const total = activeTrips.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
+  const openPriceCount = activeTrips.filter((trip) => trip.price == null).length;
 
   autoTable(doc, {
     startY: 47,
@@ -140,9 +146,9 @@ export function exportFahrberichtPdf(params: {
       t.pickupAddress,
       t.destinationAddress,
       t.destinationCode ?? '-',
-      t.status === 'cancelled' ? 'storniert' : t.price.toFixed(2),
+      t.status === 'cancelled' ? 'storniert' : t.price != null ? t.price.toFixed(2) : 'offen',
     ]),
-    foot: [['', '', '', 'Summe', total.toFixed(2)]],
+    foot: [['', '', '', `Summe${openPriceCount ? ` (${openPriceCount} offen)` : ''}`, total.toFixed(2)]],
     styles: { fontSize: 9, cellPadding: 2.2 },
     headStyles: { fillColor: [23, 22, 21], textColor: [244, 236, 221] },
     footStyles: { fillColor: [230, 210, 181], textColor: [23, 22, 21], fontStyle: 'bold' },
