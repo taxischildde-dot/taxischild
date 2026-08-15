@@ -105,6 +105,22 @@ export function exportTripsReportPdf(params: {
   doc.save(fileName);
 }
 
+export function getFahrberichtHeaders(showTripTime = false): string[] {
+  return showTripTime ? ['Zeit', 'Name', 'Von', 'Nach', 'Kürzel', 'Euro'] : ['Name', 'Von', 'Nach', 'Kürzel', 'Euro'];
+}
+
+export function getFahrberichtRow(trip: Trip, showTripTime = false): string[] {
+  const row = [
+    trip.customerName,
+    trip.pickupAddress,
+    trip.destinationAddress,
+    trip.destinationCode ?? '-',
+    trip.status === 'cancelled' ? 'storniert' : trip.price != null ? trip.price.toFixed(2) : 'offen',
+  ];
+  if (!showTripTime) return row;
+  return [new Date(trip.scheduledAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), ...row];
+}
+
 // Tagesbericht je Fahrer (entspricht dem Papier-"Fahrbericht"): Kopfdaten,
 // Fahrtenliste des Tages, Kilometerstände sowie leere Zeilen für Unterschrift
 // und Firmenstempel zum Ausdrucken.
@@ -116,8 +132,9 @@ export function exportFahrberichtPdf(params: {
   trips: Trip[];
   odometerStart?: number;
   odometerEnd?: number;
+  showTripTime?: boolean;
 }) {
-  const { companyName, driver, vehicle, dateLabel, trips, odometerStart, odometerEnd } = params;
+  const { companyName, driver, vehicle, dateLabel, trips, odometerStart, odometerEnd, showTripTime = false } = params;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   doc.setFontSize(16);
@@ -137,23 +154,25 @@ export function exportFahrberichtPdf(params: {
   const activeTrips = trips.filter((t) => t.status !== 'cancelled');
   const total = activeTrips.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
   const openPriceCount = activeTrips.filter((trip) => trip.price == null).length;
+  const headers = getFahrberichtHeaders(showTripTime);
+  const totalKm = odometerStart != null && odometerEnd != null && odometerEnd >= odometerStart
+    ? odometerEnd - odometerStart
+    : undefined;
 
   autoTable(doc, {
     startY: 47,
-    head: [['Zeit', 'Von', 'Nach', 'Ziel-Kürzel', 'Preis (EUR)']],
-    body: trips.map((t) => [
-      new Date(t.scheduledAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-      t.pickupAddress,
-      t.destinationAddress,
-      t.destinationCode ?? '-',
-      t.status === 'cancelled' ? 'storniert' : t.price != null ? t.price.toFixed(2) : 'offen',
-    ]),
-    foot: [['', '', '', `Summe${openPriceCount ? ` (${openPriceCount} offen)` : ''}`, total.toFixed(2)]],
+    head: [headers],
+    body: trips.map((trip) => getFahrberichtRow(trip, showTripTime)),
+    foot: [[
+      ...Array(Math.max(0, headers.length - 2)).fill(''),
+      `Gesamt${openPriceCount ? ` (${openPriceCount} offen)` : ''}`,
+      total.toFixed(2),
+    ]],
     styles: { fontSize: 9, cellPadding: 2.2 },
     headStyles: { fillColor: [23, 22, 21], textColor: [244, 236, 221] },
     footStyles: { fillColor: [230, 210, 181], textColor: [23, 22, 21], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [251, 246, 236] },
-    columnStyles: { 4: { halign: 'right' } },
+    columnStyles: { [headers.length - 1]: { halign: 'right' } },
     margin: { left: 14, right: 14 },
   });
 
@@ -162,10 +181,11 @@ export function exportFahrberichtPdf(params: {
 
   doc.setFontSize(10.5);
   doc.setTextColor(23, 22, 21);
-  doc.text(`Kilometerstand Start: ${odometerStart != null ? odometerStart : '_______________'}`, 14, y);
-  doc.text(`Kilometerstand Ende: ${odometerEnd != null ? odometerEnd : '_______________'}`, 105, y);
+  doc.text(`KM Anfang: ${odometerStart != null ? odometerStart : '_______________'}`, 14, y);
+  doc.text(`KM Ende: ${odometerEnd != null ? odometerEnd : '_______________'}`, 105, y);
+  doc.text(`Gesamt: ${totalKm != null ? `${totalKm} km` : '_______________'}`, 14, y + 7);
 
-  y += 20;
+  y += 24;
   doc.setDrawColor(150, 140, 125);
   doc.line(14, y, 85, y);
   doc.line(120, y, 191, y);
@@ -203,16 +223,16 @@ export function exportStundenzettelPdf(params: {
 
   autoTable(doc, {
     startY: 40,
-    head: [['Datum', 'Beginn', 'Ende', 'Pause (Min.)', 'Gesamt', 'Notizen']],
+    head: [['Datum', 'Beginn', 'Ende', 'Gesamtzeit', 'Pause (Min.)', 'Bemerkung']],
     body: rows.map((r) => [
       r.dateLabel,
       r.workStart ?? '-',
       r.workEnd ?? '-',
-      r.breakMinutes ? String(r.breakMinutes) : '-',
       r.totalMinutes > 0 ? fmt(r.totalMinutes) : '-',
+      r.breakMinutes ? String(r.breakMinutes) : '-',
       r.notes ?? '',
     ]),
-    foot: [['', '', '', '', fmt(totalMinutes), 'Monatssumme']],
+    foot: [['', '', '', fmt(totalMinutes), '', 'Gesamtstunden']],
     styles: { fontSize: 9, cellPadding: 2.2 },
     headStyles: { fillColor: [23, 22, 21], textColor: [244, 236, 221] },
     footStyles: { fillColor: [230, 210, 181], textColor: [23, 22, 21], fontStyle: 'bold' },

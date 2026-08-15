@@ -76,6 +76,42 @@ describe('local company data boundaries', () => {
     expect(db.trips.getForCompany(company.id, trip.id)?.paymentMethod).toBe('municipality_school');
   });
 
+  it('returns only the assigned driver trips within the company boundary', () => {
+    const company = db.companies.create('FahrerTaxi');
+    const firstDriver = db.users.create({
+      companyId: company.id,
+      role: 'driver',
+      name: 'Fahrer Eins',
+      email: 'eins@example.test',
+      password: 'secret',
+    });
+    const secondDriver = db.users.create({
+      companyId: company.id,
+      role: 'driver',
+      name: 'Fahrer Zwei',
+      email: 'zwei@example.test',
+      password: 'secret',
+    });
+    const baseTrip = {
+      companyId: company.id,
+      customerName: 'Kunde',
+      pickupAddress: 'Bahnhof',
+      destinationAddress: 'Klinik',
+      scheduledAt: '2026-08-16T08:00:00.000Z',
+      price: 20,
+      currency: 'EUR',
+      status: 'scheduled' as const,
+      paymentMethod: 'invoice' as const,
+      entrySource: 'central' as const,
+      createdBy: firstDriver.id,
+    };
+    const firstTrip = db.trips.create({ ...baseTrip, driverId: firstDriver.id });
+    db.trips.create({ ...baseTrip, customerName: 'Andere Person', driverId: secondDriver.id });
+
+    expect(db.trips.byDriver(company.id, firstDriver.id).map((trip) => trip.id)).toEqual([firstTrip.id]);
+    expect(db.trips.byDriver(company.id, secondDriver.id)).toHaveLength(1);
+  });
+
   it('supports two responsible drivers and clears assignments only in the owning company', () => {
     const firstCompany = db.companies.create('Nord Taxi');
     const secondCompany = db.companies.create('Süd Taxi');

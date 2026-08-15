@@ -8,6 +8,7 @@ import { Card } from '../ui/Card';
 import { Field, Input, Select } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { DownloadIcon } from '../ui/Icons';
+import { DailyOdometerEditor } from './DailyOdometerEditor';
 
 export function FahrberichtCard() {
   const { user, company } = useAuth();
@@ -20,17 +21,18 @@ export function FahrberichtCard() {
 
   const [driverId, setDriverId] = useState(isAdmin ? drivers[0]?.id ?? '' : user?.id ?? '');
   const [dateKey, setDateKey] = useState(toDateKey());
+  const [showTripTime, setShowTripTime] = useState(false);
+  const [, setDailyLogTick] = useState(0);
+  const driver = company ? db.users.getForCompany(company.id, driverId) : undefined;
+  const dailyLog = company && driver ? db.dailyLogs.byDriverAndDate(company.id, driver.id, dateKey) : undefined;
 
   if (!company || (isAdmin && drivers.length === 0)) return null;
-
-  const driver = db.users.getForCompany(company.id, driverId);
   const trips = driver
     ? db.trips
         .byCompany(company.id)
         .filter((t) => t.driverId === driver.id && toDateKey(new Date(t.scheduledAt)) === dateKey)
         .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
     : [];
-  const dailyLog = driver ? db.dailyLogs.byDriverAndDate(company.id, driver.id, dateKey) : undefined;
   const vehicle = dailyLog?.vehicleId
     ? db.vehicles.getForCompany(company.id, dailyLog.vehicleId)
     : db.vehicles
@@ -50,6 +52,7 @@ export function FahrberichtCard() {
       trips,
       odometerStart: dailyLog?.odometerStart,
       odometerEnd: dailyLog?.odometerEnd,
+      showTripTime,
     });
   };
 
@@ -80,6 +83,24 @@ export function FahrberichtCard() {
           />
         </Field>
       </div>
+
+      <DailyOdometerEditor
+        companyId={company.id}
+        driverId={driver?.id}
+        dateKey={dateKey}
+        dailyLog={dailyLog}
+        onSaved={() => setDailyLogTick((tick) => tick + 1)}
+      />
+
+      <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink/65">
+        <input
+          type="checkbox"
+          checked={showTripTime}
+          onChange={(event) => setShowTripTime(event.target.checked)}
+          className="h-4 w-4 rounded border-cream-400 accent-amber-500"
+        />
+        Abholzeit im Fahrbericht anzeigen
+      </label>
 
       <p className="mt-3 text-sm text-ink/60">
         {trips.length} Fahrt(en) · Bekannte Summe {formatMoney(total)}
