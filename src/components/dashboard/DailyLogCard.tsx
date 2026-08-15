@@ -8,20 +8,18 @@ import { Button } from '../ui/Button';
 
 export function DailyLogCard() {
   const { user, company } = useAuth();
-  const [tick, setTick] = useState(0);
   const todayKey = toDateKey();
 
   const existing = useMemo(
     () => (user && company ? db.dailyLogs.byDriverAndDate(company.id, user.id, todayKey) : undefined),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, todayKey, tick],
+    [company, user, todayKey],
   );
 
-  const [odometerStart, setOdometerStart] = useState(existing?.odometerStart ? String(existing.odometerStart) : '');
-  const [odometerEnd, setOdometerEnd] = useState(existing?.odometerEnd ? String(existing.odometerEnd) : '');
+  const [odometerStart, setOdometerStart] = useState(existing?.odometerStart != null ? String(existing.odometerStart) : '');
+  const [odometerEnd, setOdometerEnd] = useState(existing?.odometerEnd != null ? String(existing.odometerEnd) : '');
   const [workStart, setWorkStart] = useState(existing?.workStart ?? '');
   const [workEnd, setWorkEnd] = useState(existing?.workEnd ?? '');
-  const [breakMinutes, setBreakMinutes] = useState(existing?.breakMinutes ? String(existing.breakMinutes) : '');
+  const [breakMinutes, setBreakMinutes] = useState(existing?.breakMinutes != null ? String(existing.breakMinutes) : '');
   const [saved, setSaved] = useState(false);
 
   if (!user || !company || user.role !== 'driver') return null;
@@ -41,7 +39,6 @@ export function DailyLogCard() {
         breakMinutes: breakMinutes ? Number(breakMinutes) : undefined,
       },
     });
-    setTick((n) => n + 1);
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };

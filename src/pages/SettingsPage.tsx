@@ -209,18 +209,22 @@ export default function SettingsPage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink/5 text-ink/60">
                   <UsersIcon width={17} height={17} />
                 </div>
-                <h3 className="font-display text-sm font-extrabold text-ink">Fahrerteam ({drivers.length})</h3>
+                <h3 className="font-display text-sm font-extrabold text-ink">Fahrerzugänge ({drivers.length})</h3>
               </div>
               <button
                 onClick={openAddDriver}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 text-asphalt-950"
-                aria-label="Fahrer hinzufügen"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-amber-400 px-3 text-xs font-extrabold text-asphalt-950"
+                aria-label="Fahrerzugang anlegen"
               >
                 <PlusIcon width={16} height={16} />
+                Fahrerzugang
               </button>
             </div>
+            <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-ink/60">
+              Die Geschäftsführung legt hier pro Fahrer ein eigenes Konto mit E-Mail und Passwort an. Der Fahrer meldet sich anschließend mit diesen Zugangsdaten an und sieht nur seine zugewiesenen Fahrten. Da TaxiSchild offline-first mit localStorage arbeitet, gibt es keinen automatischen E-Mail-Versand; Zugangsdaten müssen sicher direkt übergeben werden.
+            </p>
             {drivers.length === 0 ? (
-              <p className="text-sm text-ink/45">Es wurden noch keine Fahrer hinzugefügt</p>
+              <p className="text-sm text-ink/45">Es wurden noch keine Fahrerzugänge angelegt</p>
             ) : (
               <div className="divide-y divide-cream-400/50">
                 {drivers.map((d) => (
@@ -332,8 +336,8 @@ export default function SettingsPage() {
             </div>
           </Field>
           <Field
-            label={editingDriverId ? 'Neues Passwort' : 'Vorläufiges Passwort'}
-            hint={editingDriverId ? 'leer lassen, um es nicht zu ändern' : undefined}
+            label={editingDriverId ? 'Neues Passwort' : 'Passwort für den Fahrer'}
+            hint={editingDriverId ? 'leer lassen, um es nicht zu ändern' : 'Nach dem Speichern sicher an den Fahrer übergeben'}
             required={!editingDriverId}
           >
             <Input

@@ -10,10 +10,18 @@
 - [x] Document that localStorage filtering is not a substitute for secure server-side multi-tenancy and password authentication.
 - [x] Add deferred-billing methods for Krankenkasse and Gemeinde/Schulfahrten across the trip workflow and reports.
 - [x] Make the trip price optional and display an explicit pending-price state until the company finalizes invoicing.
-- [ ] Test the revised booking, reporting, and PDF workflows and publish the update to GitHub.
+- [x] Test the revised booking, reporting, and PDF workflows and publish the update to GitHub.
 - [x] Add a flexible responsible-driver assignment control to vehicle creation and editing.
 - [x] Allow replacing or clearing one or more responsible drivers from the fleet interface without deleting the vehicle.
 - [x] Add regression coverage for company-scoped vehicle driver assignments and clearing assignments.
-- [ ] Test the fleet assignment workflow and update the GitHub repository.
-- [ ] Reuse the saved GitHub authentication/session for future updates instead of requesting a token on every upload.
-- [ ] Verify repository write access using the saved session without exposing credentials.
+- [x] Test the fleet assignment workflow and update the GitHub repository.
+- [x] Reuse the saved GitHub authentication/session for future updates instead of requesting a token on every upload.
+- [x] Verify repository write access using the saved session without exposing credentials.
+- [ ] Investigate why daily odometer readings are missing from the Fahrbericht workflow and whether driver invitation/login affects access.
+- [ ] Add or restore an easy company-scoped form to save daily starting and ending odometer readings for each driver and date.
+- [ ] Verify that Fahrbericht PDF and on-screen summaries show saved odometer readings, with clear empty-state guidance when none are saved.
+- [ ] Ensure Fahrbericht PDF includes the customer name and make the displayed pickup time optional by company preference.
+- [ ] Add a clear admin workflow to invite/create driver accounts with company-scoped credentials.
+- [ ] Ensure each driver sees only their own assigned trips and can record daily odometer readings and work hours.
+- [ ] Add regression tests for driver account isolation, invitation completion, and report customer-name output.
+- [ ] Test and publish the report and driver-account update to GitHub.

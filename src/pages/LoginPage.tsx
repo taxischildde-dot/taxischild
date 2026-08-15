@@ -59,6 +59,9 @@ export default function LoginPage() {
             Anmelden
           </Button>
         </form>
+        <p className="mt-3 text-center text-xs leading-relaxed text-cream-100/45">
+          Fahrer melden sich mit der E-Mail-Adresse und dem Passwort an, die ihnen die Geschäftsführung sicher übergibt.
+        </p>
 
         <button
           onClick={seedDemoAndLogin}
