@@ -15,3 +15,5 @@
 - [x] Allow replacing or clearing one or more responsible drivers from the fleet interface without deleting the vehicle.
 - [x] Add regression coverage for company-scoped vehicle driver assignments and clearing assignments.
 - [ ] Test the fleet assignment workflow and update the GitHub repository.
+- [ ] Reuse the saved GitHub authentication/session for future updates instead of requesting a token on every upload.
+- [ ] Verify repository write access using the saved session without exposing credentials.
