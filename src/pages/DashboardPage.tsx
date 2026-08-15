@@ -1,130 +1,161 @@
-import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import BrandFooter from "../components/BrandFooter";
-import { TaxiSetup, emptySetup, loadSetup, isSetupComplete } from "../lib/setup-storage";
-
-const placeholderCards = [
-  { label: "Aktuelle Fahrt", value: "Keine aktive Fahrt", eyebrow: "Status" },
-  { label: "Fahrzeugstatus", value: "Bereit", eyebrow: "Fahrzeug" },
-  { label: "Tagesumsatz", value: "0,00 €", eyebrow: "Heute" },
-];
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/db';
+import { TopBar } from '../components/layout/TopBar';
+import { StatCard } from '../components/dashboard/StatCard';
+import { DailyLogCard } from '../components/dashboard/DailyLogCard';
+import { TripCard } from '../components/trips/TripCard';
+import { AssignDriverModal } from '../components/trips/AssignDriverModal';
+import { EmptyState } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { useTripActions } from '../hooks/useTripActions';
+import { formatMoney, startOfDay, startOfMonth, tomorrowDateKey, toDateKey } from '../lib/format';
+import { maybeNotifyTomorrow } from '../lib/reminders';
+import { TripIcon, PlusIcon } from '../components/ui/Icons';
+import type { Trip } from '../types';
 
 export default function DashboardPage() {
+  const { user, company } = useAuth();
   const navigate = useNavigate();
-  const [setup, setSetup] = useState<TaxiSetup>(emptySetup);
-  const [checked, setChecked] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const forceRefresh = () => setRefreshTick((n) => n + 1);
+  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh });
+  const [assigningTrip, setAssigningTrip] = useState<Trip | null>(null);
+
+  const trips = !company || !user ? [] : user.role === 'admin'
+    ? db.trips.byCompany(company.id)
+    : db.trips.byDriver(company.id, user.id);
+
+  const vehicles = useMemo(() => (company ? db.vehicles.byCompany(company.id) : []), [company]);
+  const drivers = useMemo(
+    () => (company ? db.users.byCompany(company.id).filter((u) => u.role === 'driver') : []),
+    [company],
+  );
 
   useEffect(() => {
-    const loaded = loadSetup();
-    if (!isSetupComplete(loaded)) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setSetup(loaded);
-    setChecked(true);
-  }, [navigate]);
+    if (!user) return;
+    maybeNotifyTomorrow(trips, user.role === 'admin' ? 'gesamtes Unternehmen' : 'Ihre Fahrten');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trips.length, user?.id]);
 
-  if (!checked) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <p className="font-mono text-sm text-muted">Lade Fahrzeugdaten …</p>
-      </div>
-    );
-  }
+  const today = startOfDay();
+  const monthStart = startOfMonth();
+  const tomorrowKey = tomorrowDateKey();
+
+  const completedTrips = trips.filter((t) => t.status === 'completed');
+  const todayTrips = trips.filter((t) => new Date(t.scheduledAt) >= today);
+  const todayCompleted = completedTrips.filter((t) => new Date(t.scheduledAt) >= today);
+  const monthCompleted = completedTrips.filter((t) => new Date(t.scheduledAt) >= monthStart);
+  const tomorrowTrips = trips.filter(
+    (t) => toDateKey(new Date(t.scheduledAt)) === tomorrowKey && t.status === 'scheduled',
+  );
+  const unassignedTrips = trips.filter((t) => !t.driverId && t.status !== 'cancelled');
+
+  const todayRevenue = todayCompleted.reduce((sum, t) => sum + t.price, 0);
+  const monthRevenue = monthCompleted.reduce((sum, t) => sum + t.price, 0);
+  const activeVehicles = vehicles.filter((v) => v.status === 'active').length;
+
+  const activeTrips = trips.filter((t) => t.status === 'scheduled' || t.status === 'ongoing').slice(0, 6);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8 sm:py-10">
-      <header className="mb-8 flex items-start justify-between gap-4 border-b border-line pb-5">
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-            White-Label-Betreiber
-          </p>
-          <h1 className="truncate font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            {setup.companyName}
-          </h1>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-cream">
-              {setup.vehicleNumber}
-            </span>
-            <span className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-cream">
-              {setup.driverName}
-            </span>
-          </div>
+    <div>
+      <TopBar
+        title={`Hallo, ${user?.name?.split(' ')[0] ?? ''}`}
+        subtitle={user?.role === 'admin' ? 'Überblick über Ihr Unternehmen heute' : 'Ihre heutigen Fahrten'}
+      />
+
+      <div className="space-y-5 px-4 pt-4">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Fahrten heute" value={String(todayTrips.length)} tone="dark" />
+          <StatCard label="Umsatz heute" value={formatMoney(todayRevenue)} tone="amber" />
+          {user?.role === 'admin' ? (
+            <>
+              <StatCard label="Umsatz Monat" value={formatMoney(monthRevenue)} />
+              <StatCard
+                label="Fahrzeuge aktiv"
+                value={`${activeVehicles} / ${vehicles.length}`}
+                hint={`${drivers.length} Fahrer`}
+              />
+            </>
+          ) : (
+            <>
+              <StatCard label="Umsatz Monat" value={formatMoney(monthRevenue)} />
+              <StatCard label="Fahrten abgeschlossen" value={String(completedTrips.length)} />
+            </>
+          )}
         </div>
-        <Link
-          to="/"
-          className="shrink-0 rounded-md border border-line px-3 py-1.5 font-mono text-xs uppercase tracking-signage text-muted transition-colors hover:border-amber hover:text-amber"
-        >
-          Einstellungen
-        </Link>
-      </header>
 
-      <section className="flex flex-col gap-3">
-        <Link
-          to="/trips"
-          className="flex items-center justify-between rounded-lg border border-amber bg-panel px-4 py-4"
-        >
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Heute</p>
-            <span className="font-display text-lg font-700 uppercase tracking-wide text-cream">
-              Fahrtenliste öffnen
-            </span>
-          </div>
-          <span className="font-display text-2xl text-amber" aria-hidden="true">
-            →
-          </span>
-        </Link>
-
-        <Link
-          to="/reports"
-          className="flex items-center justify-between rounded-lg border border-line bg-panel px-4 py-4 transition-colors hover:border-amber"
-        >
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-              Reports &amp; Export
+        {tomorrowTrips.length > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-card border border-amber-400/50 bg-amber-100/60 px-4 py-3">
+            <p className="text-sm font-bold text-amber-800">
+              {tomorrowTrips.length} Fahrt(en) für morgen geplant
             </p>
-            <span className="font-display text-lg font-700 uppercase tracking-wide text-cream">
-              Fahrbericht &amp; Stundenzettel
-            </span>
+            <button onClick={() => navigate('/trips')} className="text-sm font-bold text-amber-700 underline">
+              Ansehen
+            </button>
           </div>
-          <span className="font-display text-2xl text-muted" aria-hidden="true">
-            →
-          </span>
-        </Link>
+        )}
 
-        {placeholderCards.map((card) => (
-          <div key={card.label} className="rounded-lg border border-line bg-panel px-4 py-3.5">
-            <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-              {card.eyebrow}
+        {user?.role === 'admin' && unassignedTrips.length > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3">
+            <p className="text-sm font-bold text-danger">
+              {unassignedTrips.length} Fahrt(en) ohne zugewiesenen Fahrer
             </p>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="font-body text-sm text-cream">{card.label}</span>
-              <span className="font-mono text-sm text-amber">{card.value}</span>
+            <button onClick={() => setAssigningTrip(unassignedTrips[0])} className="text-sm font-bold text-danger underline">
+              Jetzt zuweisen
+            </button>
+          </div>
+        )}
+
+        <Button fullWidth size="lg" icon={<PlusIcon width={20} height={20} />} onClick={() => navigate('/trips/new')}>
+          Neue Fahrt
+        </Button>
+
+        {user?.role === 'driver' && <DailyLogCard />}
+
+        <div>
+          <div className="mb-2.5 flex items-center justify-between">
+            <h2 className="font-display text-base font-extrabold text-ink">Aktive Fahrten</h2>
+            <button onClick={() => navigate('/trips')} className="text-sm font-bold text-amber-600">
+              Alle anzeigen
+            </button>
+          </div>
+
+          {activeTrips.length === 0 ? (
+            <EmptyState
+              icon={<TripIcon width={36} height={36} />}
+              title="Aktuell keine aktiven Fahrten"
+              description="Tippen Sie auf „Neue Fahrt“, um die erste Buchung anzulegen"
+            />
+          ) : (
+            <div className="space-y-3">
+              {activeTrips.map((trip) => (
+                <TripCard
+                  key={trip.id}
+                  trip={trip}
+                  driver={trip.driverId && company ? db.users.getForCompany(company.id, trip.driverId) : undefined}
+                  vehicle={trip.vehicleId && company ? db.vehicles.getForCompany(company.id, trip.vehicleId) : undefined}
+                  showDriver={user?.role === 'admin'}
+                  onAdvance={advance}
+                  onCancel={cancel}
+                  onEdit={(t) => navigate(`/trips/${t.id}/edit`)}
+                  onAssign={user?.role === 'admin' ? setAssigningTrip : undefined}
+                />
+              ))}
             </div>
-          </div>
-        ))}
+          )}
+        </div>
+      </div>
 
-        <Link
-          to="/support"
-          className="flex items-center justify-between rounded-lg border border-line bg-panel px-4 py-4 transition-colors hover:border-amber"
-        >
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Hilfe</p>
-            <span className="font-display text-lg font-700 uppercase tracking-wide text-cream">
-              Support &amp; Feedback
-            </span>
-          </div>
-          <span className="font-display text-2xl text-muted" aria-hidden="true">
-            →
-          </span>
-        </Link>
-      </section>
-
-      <p className="mt-8 text-center text-xs text-muted">
-        Dies ist das Grundlayout des Dashboards — weitere Module folgen.
-      </p>
-
-      <BrandFooter />
-    </main>
+      <AssignDriverModal
+        trip={assigningTrip}
+        onClose={() => setAssigningTrip(null)}
+        onAssigned={() => {
+          setAssigningTrip(null);
+          forceRefresh();
+        }}
+      />
+    </div>
   );
 }

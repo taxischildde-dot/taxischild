@@ -1,143 +1,131 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import TripForm from "../components/TripForm";
-import TripCard from "../components/TripCard";
-import BrandFooter from "../components/BrandFooter";
-import { Trip, TripStatus, loadTrips, saveTrips, todayKey } from "../lib/trips-storage";
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/db';
+import { TopBar } from '../components/layout/TopBar';
+import { TripCard } from '../components/trips/TripCard';
+import { AssignDriverModal } from '../components/trips/AssignDriverModal';
+import { EmptyState } from '../components/ui/Card';
+import { Input } from '../components/ui/Field';
+import { useTripActions } from '../hooks/useTripActions';
+import { SearchIcon } from '../components/ui/Icons';
+import type { Trip, TripStatus } from '../types';
+import { TRIP_STATUS_LABEL } from '../lib/labels';
 
-type FilterTab = "alle" | TripStatus;
-
-const filterTabs: { key: FilterTab; label: string }[] = [
-  { key: "alle", label: "Alle" },
-  { key: "geplant", label: "Geplant" },
-  { key: "aktiv", label: "Aktiv" },
-  { key: "erledigt", label: "Erledigt" },
-  { key: "storniert", label: "Storno" },
-];
+type FilterKey = 'all' | TripStatus | 'unassigned';
 
 export default function TripsPage() {
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [filter, setFilter] = useState<FilterTab>("alle");
+  const { user, company } = useAuth();
+  const navigate = useNavigate();
+  const [refreshTick, setRefreshTick] = useState(0);
+  const forceRefresh = () => setRefreshTick((n) => n + 1);
+  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh });
 
-  useEffect(() => {
-    setTrips(loadTrips());
-    setHydrated(true);
-  }, []);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [query, setQuery] = useState('');
+  const [assigningTrip, setAssigningTrip] = useState<Trip | null>(null);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    saveTrips(trips);
-  }, [trips, hydrated]);
+  const allCompanyTrips = company ? db.trips.byCompany(company.id) : [];
+  const unassignedCount = allCompanyTrips.filter((t) => !t.driverId && t.status !== 'cancelled').length;
 
-  const todaysTrips = useMemo(
-    () =>
-      trips
-        .filter((t) => t.date === todayKey())
-        .sort((a, b) => a.pickupTime.localeCompare(b.pickupTime)),
-    [trips]
-  );
+  const filters: Array<{ key: FilterKey; label: string; badge?: number }> = useMemo(() => {
+    const base: Array<{ key: FilterKey; label: string; badge?: number }> = [{ key: 'all', label: 'Alle' }];
+    if (user?.role === 'admin' && unassignedCount > 0) {
+      base.push({ key: 'unassigned', label: 'Nicht zugewiesen', badge: unassignedCount });
+    }
+    base.push(
+      { key: 'scheduled', label: TRIP_STATUS_LABEL.scheduled },
+      { key: 'ongoing', label: TRIP_STATUS_LABEL.ongoing },
+      { key: 'completed', label: TRIP_STATUS_LABEL.completed },
+      { key: 'cancelled', label: TRIP_STATUS_LABEL.cancelled },
+    );
+    return base;
+  }, [user, unassignedCount]);
 
-  const visibleTrips = useMemo(
-    () => (filter === "alle" ? todaysTrips : todaysTrips.filter((t) => t.status === filter)),
-    [todaysTrips, filter]
-  );
-
-  const counts = useMemo(() => {
-    const c: Record<FilterTab, number> = {
-      alle: todaysTrips.length,
-      geplant: 0,
-      aktiv: 0,
-      erledigt: 0,
-      storniert: 0,
-    };
-    todaysTrips.forEach((t) => (c[t.status] += 1));
-    return c;
-  }, [todaysTrips]);
-
-  const addTrip = (trip: Trip) => {
-    setTrips((prev) => [...prev, trip]);
-    setFormOpen(false);
-  };
-
-  const updateTrip = (updated: Trip) => {
-    setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  };
-
-  const todayLabel = new Date().toLocaleDateString("de-DE", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-  });
+  const trips = !company || !user
+    ? []
+    : (user.role === 'admin' ? allCompanyTrips : allCompanyTrips.filter((t) => t.driverId === user.id))
+        .filter((t) => {
+          if (filter === 'all') return true;
+          if (filter === 'unassigned') return !t.driverId && t.status !== 'cancelled';
+          return t.status === filter;
+        })
+        .filter((t) => {
+          if (!query.trim()) return true;
+          const q = query.trim().toLowerCase();
+          return (
+            t.customerName.toLowerCase().includes(q) ||
+            t.pickupAddress.toLowerCase().includes(q) ||
+            t.destinationAddress.toLowerCase().includes(q) ||
+            (t.customerPhone ?? '').includes(q)
+          );
+        });
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-8 sm:pt-10">
-      <header className="mb-5 flex items-start justify-between gap-3 border-b border-line pb-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-            Fahrtenliste
-          </p>
-          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            {todayLabel}
-          </h1>
+    <div>
+      <TopBar title="Fahrten" subtitle={`${trips.length} Buchungen`} />
+
+      <div className="space-y-4 px-4 pt-4">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Suche nach Kunde, Adresse oder Telefon"
+        />
+
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {filters.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-pill border px-4 py-2 text-sm font-bold transition ${
+                filter === f.key
+                  ? 'border-asphalt-900 bg-asphalt-900 text-cream-100'
+                  : 'border-cream-400 bg-cream-100 text-ink/60'
+              }`}
+            >
+              {f.label}
+              {!!f.badge && (
+                <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[0.65rem] font-extrabold text-asphalt-950">
+                  {f.badge}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-        <Link
-          to="/dashboard"
-          className="flex h-10 shrink-0 items-center rounded-md border border-line px-3 font-mono text-xs uppercase tracking-signage text-muted transition-colors hover:border-amber hover:text-amber"
-        >
-          Dashboard
-        </Link>
-      </header>
 
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 font-mono text-xs uppercase tracking-signage transition-colors ${
-              filter === tab.key ? "border-amber bg-amber text-asphalt" : "border-line text-muted"
-            }`}
-          >
-            {tab.label}
-            <span className="opacity-70">{counts[tab.key]}</span>
-          </button>
-        ))}
-      </div>
-
-      {formOpen && (
-        <div className="mb-5">
-          <TripForm onAdd={addTrip} onClose={() => setFormOpen(false)} />
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        {visibleTrips.length === 0 && (
-          <div className="rounded-lg border border-dashed border-line px-4 py-10 text-center">
-            <p className="font-mono text-sm text-muted">
-              {todaysTrips.length === 0
-                ? "Noch keine Fahrten für heute eingetragen."
-                : "Keine Fahrten in dieser Kategorie."}
-            </p>
+        {trips.length === 0 ? (
+          <EmptyState
+            icon={<SearchIcon width={32} height={32} />}
+            title="Keine Ergebnisse"
+            description="Filter oder Suchbegriff anpassen und erneut versuchen"
+          />
+        ) : (
+          <div className="space-y-3 pb-4">
+            {trips.map((trip) => (
+              <TripCard
+                key={trip.id}
+                trip={trip}
+                driver={trip.driverId && company ? db.users.getForCompany(company.id, trip.driverId) : undefined}
+                vehicle={trip.vehicleId && company ? db.vehicles.getForCompany(company.id, trip.vehicleId) : undefined}
+                showDriver={user?.role === 'admin'}
+                onAdvance={advance}
+                onCancel={cancel}
+                onEdit={(t) => navigate(`/trips/${t.id}/edit`)}
+                onAssign={user?.role === 'admin' ? setAssigningTrip : undefined}
+              />
+            ))}
           </div>
         )}
-        {visibleTrips.map((trip) => (
-          <TripCard key={trip.id} trip={trip} onUpdate={updateTrip} />
-        ))}
       </div>
 
-      {!formOpen && (
-        <button
-          type="button"
-          onClick={() => setFormOpen(true)}
-          aria-label="Neue Fahrt eintragen"
-          className="fixed bottom-6 left-1/2 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-amber text-3xl font-700 text-asphalt shadow-lamp"
-        >
-          +
-        </button>
-      )}
-
-      <BrandFooter />
-    </main>
+      <AssignDriverModal
+        trip={assigningTrip}
+        onClose={() => setAssigningTrip(null)}
+        onAssigned={() => {
+          setAssigningTrip(null);
+          forceRefresh();
+        }}
+      />
+    </div>
   );
 }

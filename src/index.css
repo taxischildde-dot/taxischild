@@ -2,45 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  color-scheme: dark;
+html, body, #root {
+  height: 100%;
 }
 
 body {
-  min-height: 100dvh;
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  overscroll-behavior-y: none;
 }
 
-::selection {
-  background: #e8a233;
-  color: #181714;
+/* Zahlen im "Taxameter"-Stil immer mit gleicher Breite */
+.font-meter {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Visible, deliberate focus ring instead of the browser default */
-:focus-visible {
-  outline: 2px solid #e8a233;
-  outline-offset: 2px;
-  border-radius: 2px;
+/* Dezente Scrollbar für horizontale Filterleisten */
+::-webkit-scrollbar {
+  height: 0;
+  width: 6px;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-@media print {
-  @page {
-    margin: 16mm;
-  }
-
-  html {
-    color-scheme: light;
-  }
-
-  body {
-    background: white !important;
-    color: #181714 !important;
-  }
+::-webkit-scrollbar-thumb {
+  background: rgba(43, 38, 33, 0.15);
+  border-radius: 999px;
 }
