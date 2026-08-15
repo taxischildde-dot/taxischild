@@ -1,217 +1,88 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import BrandFooter from "../components/BrandFooter";
-import { loadSetup, TaxiSetup, emptySetup } from "../lib/setup-storage";
-import {
-  FeedbackCategory,
-  FeedbackEntry,
-  SUPPORT_EMAIL,
-  buildSupportMailto,
-  categoryLabels,
-  createFeedbackId,
-  loadFeedbackHistory,
-  saveFeedbackHistory,
-} from "../lib/support-storage";
+import React, { useState } from 'react';
+import { TopBar } from '../components/layout/TopBar';
+import { Card } from '../components/ui/Card';
+import { ChevronIcon, SupportIcon } from '../components/ui/Icons';
+import { useAuth } from '../context/AuthContext';
 
-const categories: FeedbackCategory[] = ["fehler", "funktionswunsch", "abrechnung", "allgemein"];
+const FAQ: Array<{ q: string; a: string }> = [
+  {
+    q: 'Wie erfasse ich schnell eine neue Fahrt?',
+    a: 'Tippen Sie unten auf das amberfarbene „+“ oder auf „Neue Fahrt“ auf der Startseite. Geben Sie Kundenname, Abholort, Ziel und Preis ein und speichern Sie — das Formular ist auf möglichst wenige Klicks ausgelegt.',
+  },
+  {
+    q: 'Was ist der Unterschied zwischen „Zentrale“ und „Direktanruf beim Fahrer“?',
+    a: 'Trägt die Geschäftsführung oder die Zentrale die Fahrt ein, wird sie als „Zentrale“ erfasst. Ruft der Kunde direkt beim Fahrer an und dieser trägt die Fahrt selbst über sein Telefon ein, wird sie als „Direktanruf beim Fahrer“ markiert — in beiden Fällen bleibt die Fahrt für alle sichtbar.',
+  },
+  {
+    q: 'Kann ein Fahrer die Fahrten anderer Fahrer sehen?',
+    a: 'Nein. Jeder Fahrer sieht ausschließlich seine eigenen Fahrten, während die Geschäftsführung alle Fahrten sämtlicher Fahrer und Fahrzeuge einsehen kann.',
+  },
+  {
+    q: 'Wie erstelle ich einen Bericht für die Buchhaltung?',
+    a: 'Wählen Sie im Bereich „Berichte“ den gewünschten Zeitraum (heute, Woche, Monat oder alle) und tippen Sie auf „PDF-Bericht exportieren“. Die Datei wird sofort heruntergeladen und ist druckfertig.',
+  },
+  {
+    q: 'Bleiben meine Daten erhalten, wenn ich den Browser schließe?',
+    a: 'Ja, alle Daten werden lokal auf Ihrem Gerät gespeichert. Zusätzlich können Sie in den Einstellungen jederzeit eine Sicherungskopie herunterladen.',
+  },
+  {
+    q: 'Kann ich die App auf dem Startbildschirm installieren?',
+    a: 'Ja, TaxiSchild ist eine Progressive Web App (PWA) — wählen Sie in Ihrem Browser „Zum Startbildschirm hinzufügen“, damit die App wie eine eigenständige Anwendung funktioniert, auch ohne durchgehende Internetverbindung.',
+  },
+];
+
+function AccordionItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-cream-400/50 last:border-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 py-3.5 text-left"
+      >
+        <span className="text-sm font-bold text-ink">{q}</span>
+        <ChevronIcon
+          width={16}
+          height={16}
+          className={`shrink-0 text-ink/40 transition-transform ${open ? 'rotate-90' : ''}`}
+        />
+      </button>
+      {open && <p className="pb-3.5 text-sm leading-relaxed text-ink/60">{a}</p>}
+    </div>
+  );
+}
 
 export default function SupportPage() {
-  const [setup, setSetup] = useState<TaxiSetup>(emptySetup);
-  const [history, setHistory] = useState<FeedbackEntry[]>([]);
-  const [category, setCategory] = useState<FeedbackCategory>("fehler");
-  const [message, setMessage] = useState("");
-  const [replyEmail, setReplyEmail] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setSetup(loadSetup());
-    setHistory(loadFeedbackHistory());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    saveFeedbackHistory(history);
-  }, [history, hydrated]);
-
-  const canSubmit = message.trim().length > 0;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-
-    const entry: FeedbackEntry = {
-      id: createFeedbackId(),
-      category,
-      message: message.trim(),
-      replyEmail: replyEmail.trim(),
-      createdAt: Date.now(),
-    };
-
-    const mailto = buildSupportMailto({
-      category,
-      message: entry.message,
-      replyEmail: entry.replyEmail,
-      companyName: setup.companyName,
-      vehicleNumber: setup.vehicleNumber,
-    });
-
-    setHistory((prev) => [entry, ...prev]);
-    window.location.href = mailto;
-
-    setMessage("");
-    setReplyEmail("");
-  };
-
-  const copyEmail = async () => {
-    try {
-      await navigator.clipboard.writeText(SUPPORT_EMAIL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API unavailable — the email is still visible and selectable.
-    }
-  };
-
+  const { company } = useAuth();
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8 sm:py-10">
-      <header className="mb-6 flex items-start justify-between gap-3 border-b border-line pb-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-signage text-muted">Hilfe</p>
-          <h1 className="font-display text-2xl font-700 uppercase tracking-wide text-cream">
-            Support &amp; Feedback
-          </h1>
-        </div>
-        <Link
-          to="/dashboard"
-          className="flex h-10 shrink-0 items-center rounded-md border border-line px-3 font-mono text-xs uppercase tracking-signage text-muted transition-colors hover:border-amber hover:text-amber"
-        >
-          Dashboard
-        </Link>
-      </header>
+    <div>
+      <TopBar title="Support" subtitle="Häufige Fragen & direkter Kontakt" />
 
-      {/* Direct contact — the official support channel */}
-      <div className="rounded-lg border border-amber bg-panel p-4">
-        <p className="font-mono text-[10px] uppercase tracking-signage text-muted">
-          Offizieller Support-Kontakt
-        </p>
-        <p className="mt-1 font-mono text-lg text-cream">{SUPPORT_EMAIL}</p>
-        <p className="mt-2 text-sm text-muted">
-          Für dringende Anliegen, Reklamationen oder allgemeine Fragen erreichen Sie unser Team
-          direkt per E-Mail.
-        </p>
-        <div className="mt-4 flex gap-2">
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="flex h-12 flex-1 items-center justify-center rounded-md bg-amber font-mono text-sm font-600 uppercase tracking-signage text-asphalt"
-          >
-            E-Mail schreiben
-          </a>
-          <button
-            type="button"
-            onClick={copyEmail}
-            className="flex h-12 items-center justify-center rounded-md border border-line px-4 font-mono text-sm uppercase tracking-signage text-muted hover:border-amber hover:text-amber"
-          >
-            {copied ? "Kopiert ✓" : "Kopieren"}
-          </button>
-        </div>
+      <div className="space-y-4 px-4 pt-4 pb-6">
+        <Card className="flex items-center gap-3 bg-asphalt-900 text-cream-100">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-asphalt-950">
+            <SupportIcon width={20} height={20} />
+          </div>
+          <div>
+            <p className="font-display text-sm font-bold">Sofortige Hilfe benötigt?</p>
+            <p className="text-xs text-cream-100/60">Unser Support-Team ist jederzeit für Sie da</p>
+          </div>
+        </Card>
+
+        <a
+          href="mailto:support@taxischild.de"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 font-display font-bold text-asphalt-950 transition hover:bg-amber-500"
+        >
+          support@taxischild.de
+        </a>
+
+        <Card padded={false} className="divide-y divide-cream-400/50 px-4">
+          {FAQ.map((item) => (
+            <AccordionItem key={item.q} {...item} />
+          ))}
+        </Card>
+
+        <p className="text-center text-xs text-ink/35">{company?.name ?? 'TaxiSchild'} — Version 1.0.0</p>
       </div>
-
-      {/* Quick in-app feedback form */}
-      <form
-        onSubmit={handleSubmit}
-        className="mt-5 flex flex-col gap-5 rounded-lg border border-line bg-panel p-4"
-      >
-        <h2 className="font-display text-lg font-700 uppercase tracking-wide text-cream">
-          Schnelles Feedback
-        </h2>
-        <p className="-mt-3 text-sm text-muted">
-          Öffnet Ihr E-Mail-Programm mit einer vorausgefüllten Nachricht an unser Support-Team.
-        </p>
-
-        <div className="flex flex-col gap-2">
-          <span className="font-mono text-[11px] uppercase tracking-signage text-muted">
-            Kategorie
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCategory(c)}
-                className={`flex h-11 items-center rounded-full border px-4 font-mono text-sm transition-colors ${
-                  category === c ? "border-amber bg-amber text-asphalt" : "border-line text-muted"
-                }`}
-              >
-                {categoryLabels[c]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="message" className="font-mono text-[11px] uppercase tracking-signage text-muted">
-            Nachricht
-          </label>
-          <textarea
-            id="message"
-            rows={4}
-            required
-            placeholder="Beschreiben Sie kurz, worum es geht …"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="resize-none rounded-md border border-line bg-asphalt px-3 py-3 text-base text-cream placeholder:text-muted/50 outline-none focus:border-amber"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="replyEmail" className="font-mono text-[11px] uppercase tracking-signage text-muted">
-            Ihre E-Mail (optional, für Rückfragen)
-          </label>
-          <input
-            id="replyEmail"
-            type="email"
-            placeholder="name@beispiel.de"
-            value={replyEmail}
-            onChange={(e) => setReplyEmail(e.target.value)}
-            className="rounded-md border border-line bg-asphalt px-3 py-3 text-base text-cream placeholder:text-muted/50 outline-none focus:border-amber"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="h-14 w-full rounded-md bg-amber font-display text-lg font-700 uppercase tracking-signage text-asphalt transition-opacity disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
-        >
-          Per E-Mail senden
-        </button>
-      </form>
-
-      {history.length > 0 && (
-        <div className="mt-5">
-          <h2 className="mb-2 font-mono text-[11px] uppercase tracking-signage text-muted">
-            Ihre bisherigen Meldungen
-          </h2>
-          <div className="flex flex-col gap-2">
-            {history.slice(0, 5).map((entry) => (
-              <div key={entry.id} className="rounded-md border border-line bg-panel px-3 py-2.5">
-                <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-xs uppercase tracking-signage text-amber">
-                    {categoryLabels[entry.category]}
-                  </span>
-                  <span className="font-mono text-[10px] text-muted">
-                    {new Date(entry.createdAt).toLocaleDateString("de-DE")}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-sm text-cream">{entry.message}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <BrandFooter />
-    </main>
+    </div>
   );
 }
