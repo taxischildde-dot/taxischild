@@ -36,3 +36,8 @@
 - [x] Keep Fahrbericht limited to daily trips, customer/route/payment data, and KM Anfang/KM Ende/Gesamt; do not place work hours or breaks in it.
 - [x] Keep Arbeitsbeginn, Arbeitsende, Pause, and net Gesamtzeit exclusively in Stundenzettel.
 - [x] Add regression coverage proving the two reports remain functionally separate.
+- [x] Auto-fill today’s date when a driver starts or saves a daily log, while allowing historical date editing where appropriate.
+- [x] Let admins and drivers open, edit, and print their permitted Stundenzettel records at any time with clear role boundaries.
+- [x] Add an admin dashboard driver-status board with red active-trip, green waiting/break, and black unavailable states for sickness/leave/holiday.
+- [x] Expand the desktop dashboard layout beyond the narrow mobile column while preserving responsive mobile behavior.
+- [x] Add tests for daily-log dates, role permissions, driver statuses, and responsive dashboard behavior, then publish the update.

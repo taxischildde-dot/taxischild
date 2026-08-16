@@ -5,6 +5,7 @@ import { db } from '../lib/db';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/dashboard/StatCard';
 import { DailyLogCard } from '../components/dashboard/DailyLogCard';
+import { DriverStatusBoard } from '../components/dashboard/DriverStatusBoard';
 import { TripCard } from '../components/trips/TripCard';
 import { AssignDriverModal } from '../components/trips/AssignDriverModal';
 import { EmptyState } from '../components/ui/Card';
@@ -113,6 +114,7 @@ export default function DashboardPage() {
         </Button>
 
         {user?.role === 'driver' && <DailyLogCard />}
+        {user?.role === 'admin' && company && <DriverStatusBoard companyId={company.id} />}
 
         <div>
           <div className="mb-2.5 flex items-center justify-between">

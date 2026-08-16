@@ -11,14 +11,14 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-cream-200">
-      <div className="mx-auto max-w-xl pb-28">
+      <div className="mx-auto w-full max-w-[1440px] px-3 pb-28 sm:px-6 lg:px-8 lg:pb-10">
         <Outlet />
       </div>
 
       {!hideFab && (
         <button
           onClick={() => navigate('/trips/new')}
-          className="fixed bottom-24 left-1/2 z-40 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-amber-400 text-asphalt-950 shadow-[0_8px_24px_rgba(226,149,42,0.55)] ring-4 ring-cream-200 transition active:scale-95"
+          className="fixed bottom-24 left-1/2 z-40 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-amber-400 text-asphalt-950 shadow-[0_8px_24px_rgba(226,149,42,0.55)] ring-4 ring-cream-200 transition active:scale-95 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0"
           aria-label="Neue Fahrt"
         >
           <PlusIcon width={30} height={30} strokeWidth={2.4} />
