@@ -4,6 +4,7 @@
 // lassen (camelCase hier == snake_case dort).
 
 export type UserRole = 'admin' | 'driver';
+export type DriverAvailabilityStatus = 'available' | 'break' | 'sick' | 'leave' | 'holiday';
 
 export interface Company {
   id: string;
@@ -28,6 +29,7 @@ export interface User {
   employeeNumber?: string; // Fahrer-Nr., erscheint im Fahrbericht
   licenseType?: string; // z. B. "Personenbeförderungsschein (P-Schein)"
   workDays?: Weekday[]; // an diesen Tagen erhält der Fahrer neue Fahrten; leer/undefined = alle Tage
+  availabilityStatus?: DriverAvailabilityStatus; // aktuelle Verfügbarkeit für das Admin-Dashboard
   createdAt: string;
 }
 
@@ -87,8 +89,8 @@ export function getResponsibleDriverIds(vehicle: Pick<Vehicle, 'assignedDriverId
   return vehicle.assignedDriverId ? [vehicle.assignedDriverId] : [];
 }
 
-// Ein Tagesdatensatz je Fahrer — deckt sowohl den Fahrbericht (Kilometerstände)
-// als auch den Stundenzettel (Arbeitszeiten) ab. Ein Eintrag pro (Fahrer, Datum).
+// Ein Tagesdatensatz je Fahrer — die Kilometerstände gehören zum Fahrbericht,
+// die Arbeitszeiten zum Stundenzettel. Ein Eintrag pro (Fahrer, Datum).
 export interface DailyLog {
   id: string;
   companyId: string;

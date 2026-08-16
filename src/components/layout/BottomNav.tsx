@@ -12,8 +12,8 @@ const items = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/40 bg-asphalt-900 pb-[env(safe-area-inset-bottom)] shadow-nav">
-      <ul className="mx-auto flex max-w-xl items-stretch justify-between px-1">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/40 bg-asphalt-900 pb-[env(safe-area-inset-bottom)] shadow-nav lg:hidden">
+      <ul className="mx-auto flex w-full max-w-2xl items-stretch justify-between px-1">
         {items.map(({ to, label, icon: Icon, end }) => (
           <li key={to} className="flex-1">
             <NavLink

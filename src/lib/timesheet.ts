@@ -10,6 +10,18 @@ export interface TimesheetRow {
   notes?: string;
 }
 
+export function listDateKeys(periodStart: string, periodEnd: string): string[] {
+  if (periodStart > periodEnd) return [];
+  const dates: string[] = [];
+  const cursor = new Date(`${periodStart}T00:00:00Z`);
+  const end = new Date(`${periodEnd}T00:00:00Z`);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
 export function filterDailyLogsByPeriod(logs: DailyLog[], periodStart: string, periodEnd: string): DailyLog[] {
   if (periodStart > periodEnd) return [];
   return logs

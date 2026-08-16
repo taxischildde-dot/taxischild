@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DailyLog } from '../types';
 import { getFahrberichtHeaders } from './pdf';
-import { buildTimesheetRows, filterDailyLogsByPeriod } from './timesheet';
+import { buildTimesheetRows, filterDailyLogsByPeriod, listDateKeys } from './timesheet';
 
 const logs: DailyLog[] = [
   {
@@ -29,6 +29,15 @@ const logs: DailyLog[] = [
 ];
 
 describe('timesheet period and report separation', () => {
+  it('generates the exact calendar dates for a Monday-to-Friday range', () => {
+    expect(listDateKeys('2026-08-03', '2026-08-07')).toEqual([
+      '2026-08-03',
+      '2026-08-04',
+      '2026-08-05',
+      '2026-08-06',
+      '2026-08-07',
+    ]);
+  });
   it('keeps a Monday-to-Friday period out of the Saturday row and deducts the break', () => {
     const filtered = filterDailyLogsByPeriod(logs, '2026-08-03', '2026-08-07');
     expect(filtered.map((log) => log.id)).toEqual(['log-mon']);
