@@ -13,6 +13,7 @@ type AuthResult = { ok: true; message?: string; inviteUrl?: string } | { ok: fal
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<AuthResult>;
+  resendConfirmation: (email: string) => Promise<AuthResult>;
   registerCompany: (params: {
     companyName: string;
     adminName: string;
@@ -125,6 +126,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   };
 
+  const resendConfirmation: AuthContextValue['resendConfirmation'] = async (email) => {
+    if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) return { ok: false, error: 'Bitte geben Sie zuerst Ihre E-Mail-Adresse ein.' };
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: normalizedEmail,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) {
+      const errorText = error.message.toLowerCase();
+      if (errorText.includes('rate limit') || errorText.includes('too many')) {
+        return { ok: false, error: 'Zu viele Anfragen. Bitte warten Sie einige Minuten und versuchen Sie es erneut.' };
+      }
+      return { ok: false, error: 'Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte prüfen Sie die Adresse oder versuchen Sie es später erneut.' };
+    }
+    return { ok: true, message: 'Eine neue Bestätigungs-E-Mail wurde versendet. Prüfen Sie bitte auch den Spam-Ordner.' };
+  };
+
   const registerCompany: AuthContextValue['registerCompany'] = async ({ companyName, adminName, email, password }) => {
     if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
     const { data, error } = await supabase.auth.signUp({
@@ -178,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, registerCompany, logout, addDriver, updateCompanyName, updateProfile }),
+    () => ({ ...state, login, resendConfirmation, registerCompany, logout, addDriver, updateCompanyName, updateProfile }),
     // The auth handlers intentionally close over the current authenticated state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state],

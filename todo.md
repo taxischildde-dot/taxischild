@@ -53,3 +53,4 @@
 - [x] Add the production callback URL and friendly unconfirmed-email handling for Supabase Auth.
 - [ ] Test registration, confirmation, login, and deployment after publishing the fix.
 - [x] Fix the Supabase confirmation link when it redirects to an inaccessible or unapproved URL, including a safe in-app callback route and documented Vercel redirect settings.
+- [x] Add a resend-confirmation button and helper method to the login and auth context so unconfirmed users can easily request a fresh email link.

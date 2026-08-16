@@ -5,20 +5,41 @@ import { Field, Input } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, resendConfirmation } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [canResend, setCanResend] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setNotice('');
+    setCanResend(false);
     const result = await login(email, password);
+    if (!result.ok) {
+      setError(result.error);
+      setCanResend(result.error.includes('bestätigen Sie zuerst'));
+      return;
+    }
+    navigate('/');
+  };
+
+  const handleResendConfirmation = async () => {
+    setError('');
+    setNotice('');
+    setResending(true);
+    const result = await resendConfirmation(email);
+    setResending(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    navigate('/');
+    setCanResend(false);
+    setNotice(result.message ?? 'Eine neue Bestätigungs-E-Mail wurde versendet.');
   };
 
   return (
@@ -54,6 +75,12 @@ export default function LoginPage() {
             />
           </Field>
           {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
+          {notice && <p className="rounded-xl bg-emerald-900/10 px-3 py-2 text-sm font-semibold text-emerald-800">{notice}</p>}
+          {canResend && (
+            <Button type="button" variant="secondary" fullWidth size="sm" onClick={handleResendConfirmation} disabled={resending}>
+              {resending ? 'E-Mail wird versendet …' : 'Bestätigungs-E-Mail erneut senden'}
+            </Button>
+          )}
           <Button type="submit" fullWidth size="lg">
             Anmelden
           </Button>
