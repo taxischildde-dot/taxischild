@@ -17,11 +17,22 @@
 - [x] Test the fleet assignment workflow and update the GitHub repository.
 - [x] Reuse the saved GitHub authentication/session for future updates instead of requesting a token on every upload.
 - [x] Verify repository write access using the saved session without exposing credentials.
-- [ ] Investigate why daily odometer readings are missing from the Fahrbericht workflow and whether driver invitation/login affects access.
-- [ ] Add or restore an easy company-scoped form to save daily starting and ending odometer readings for each driver and date.
-- [ ] Verify that Fahrbericht PDF and on-screen summaries show saved odometer readings, with clear empty-state guidance when none are saved.
-- [ ] Ensure Fahrbericht PDF includes the customer name and make the displayed pickup time optional by company preference.
-- [ ] Add a clear admin workflow to invite/create driver accounts with company-scoped credentials.
-- [ ] Ensure each driver sees only their own assigned trips and can record daily odometer readings and work hours.
-- [ ] Add regression tests for driver account isolation, invitation completion, and report customer-name output.
-- [ ] Test and publish the report and driver-account update to GitHub.
+- [x] Investigate why daily odometer readings are missing from the Fahrbericht workflow and whether driver invitation/login affects access.
+- [x] Add or restore an easy company-scoped form to save daily starting and ending odometer readings for each driver and date.
+- [x] Verify that Fahrbericht PDF and on-screen summaries show saved odometer readings, with clear empty-state guidance when none are saved.
+- [x] Ensure Fahrbericht PDF includes the customer name and make the displayed pickup time optional by company preference.
+- [x] Add a clear admin workflow to invite/create driver accounts with company-scoped credentials.
+- [x] Ensure each driver sees only their own assigned trips and can record daily odometer readings and work hours.
+- [x] Add regression tests for driver account isolation, invitation completion, and report customer-name output.
+- [x] Test and publish the report and driver-account update to GitHub.
+- [x] Document the end-to-end driver invitation/login/workday workflow in the app guidance.
+- [x] Make daily start/end time, odometer start/end, and break-minute entry clear for each driver and date.
+- [x] Verify net working time subtracts breaks and appears correctly in Stundenzettel totals.
+- [x] Test the driver workflow and publish any resulting fixes to GitHub.
+- [x] Make responsible-driver assignment optional during vehicle creation and editing, with easy replace and clear actions.
+- [x] Add a custom start/end date range to Stundenzettel filtering and PDF printing, including weekday-only periods such as Monday through Friday.
+- [x] Add regression tests for clearing vehicle assignments and filtering timesheet rows by a selected period.
+- [x] Validate and publish the fleet and custom-period report update to GitHub.
+- [x] Keep Fahrbericht limited to daily trips, customer/route/payment data, and KM Anfang/KM Ende/Gesamt; do not place work hours or breaks in it.
+- [x] Keep Arbeitsbeginn, Arbeitsende, Pause, and net Gesamtzeit exclusively in Stundenzettel.
+- [x] Add regression coverage proving the two reports remain functionally separate.
