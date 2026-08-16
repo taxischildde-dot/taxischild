@@ -1,8 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { HomeIcon, TripIcon, FleetIcon, ReportIcon, SupportIcon } from '../ui/Icons';
+import { useAuth } from '../../context/AuthContext';
+import { HomeIcon, TripIcon, FleetIcon, ReportIcon, SettingsIcon, SupportIcon } from '../ui/Icons';
 
-const items = [
+const adminItems = [
   { to: '/', label: 'Start', icon: HomeIcon, end: true },
   { to: '/trips', label: 'Fahrten', icon: TripIcon, end: false },
   { to: '/fleet', label: 'Fuhrpark', icon: FleetIcon, end: false },
@@ -10,7 +11,18 @@ const items = [
   { to: '/support', label: 'Support', icon: SupportIcon, end: false },
 ];
 
+const driverItems = [
+  { to: '/', label: 'Heute', icon: HomeIcon, end: true },
+  { to: '/trips', label: 'Meine Fahrten', icon: TripIcon, end: false },
+  { to: '/fleet', label: 'Mein Fahrzeug', icon: FleetIcon, end: false },
+  { to: '/settings', label: 'Profil', icon: SettingsIcon, end: false },
+  { to: '/support', label: 'Support', icon: SupportIcon, end: false },
+];
+
 export function BottomNav() {
+  const { user } = useAuth();
+  const items = user?.role === 'driver' ? driverItems : adminItems;
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/40 bg-asphalt-900 pb-[env(safe-area-inset-bottom)] shadow-nav lg:hidden">
       <ul className="mx-auto flex w-full max-w-2xl items-stretch justify-between px-1">

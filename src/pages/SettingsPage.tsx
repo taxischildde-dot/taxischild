@@ -14,7 +14,7 @@ import { Modal } from '../components/ui/Modal';
 import { Field, Input } from '../components/ui/Field';
 import { weekdayLabel } from '../lib/format';
 import { notificationPermission, requestNotificationPermission } from '../lib/reminders';
-import { BackupIcon, BuildingIcon, EditIcon, LogoutIcon, PlusIcon, SupportIcon, UsersIcon } from '../components/ui/Icons';
+import { BackupIcon, BuildingIcon, EditIcon, LogoutIcon, PlusIcon, SupportIcon, TrashIcon, UsersIcon } from '../components/ui/Icons';
 
 type PendingDriverInvite = {
   id: string;
@@ -35,7 +35,7 @@ const emptyDriverForm = {
 };
 
 export default function SettingsPage() {
-  const { user, company, logout, updateCompanyName, updateProfile, addDriver } = useAuth();
+  const { user, company, logout, updateCompanyName, updateProfile, addDriver, deleteDriver } = useAuth();
   const navigate = useNavigate();
 
   const [companyName, setCompanyName] = useState(company?.name ?? '');
@@ -120,6 +120,19 @@ export default function SettingsPage() {
     });
     setDriverError('');
     setDriverModalOpen(true);
+  };
+
+  const handleDeleteDriver = async (driver: User) => {
+    if (!company || user?.role !== 'admin') return;
+    if (!window.confirm(`Zugang von ${driver.name} wirklich entfernen? Der Fahrer kann sich danach nicht mehr anmelden.`)) return;
+    const result = await deleteDriver(driver.id);
+    if (!result.ok) {
+      setSavedMsg(result.error);
+      return;
+    }
+    await refreshDriverData();
+    setSavedMsg('Fahrerzugang entfernt');
+    setTimeout(() => setSavedMsg(''), 2500);
   };
 
   const handleSubmitDriver = async (e: React.FormEvent) => {
@@ -215,7 +228,7 @@ export default function SettingsPage() {
             <h3 className="font-display text-sm font-extrabold text-ink">Erinnerungen</h3>
           </div>
           <p className="mb-3 text-sm text-ink/55">
-            Beim Öffnen der App erhalten Sie einmal täglich einen Hinweis, wenn für morgen Fahrten geplant sind.
+            TaxiSchild meldet neue zugewiesene Fahrten und erinnert beim Öffnen der App an geplante Fahrten für morgen.
           </p>
           {permission === 'granted' ? (
             <p className="text-sm font-bold text-success">Erinnerungen sind aktiviert</p>
@@ -306,13 +319,22 @@ export default function SettingsPage() {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={() => openEditDriver(d)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink/5 text-ink/50 hover:bg-ink/10"
-                      aria-label="Fahrer bearbeiten"
-                    >
-                      <EditIcon width={14} height={14} />
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => openEditDriver(d)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink/5 text-ink/50 hover:bg-ink/10"
+                        aria-label="Fahrer bearbeiten"
+                      >
+                        <EditIcon width={14} height={14} />
+                      </button>
+                      <button
+                        onClick={() => void handleDeleteDriver(d)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger hover:bg-danger/20"
+                        aria-label="Fahrerzugang entfernen"
+                      >
+                        <TrashIcon width={14} height={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -320,20 +342,22 @@ export default function SettingsPage() {
           </Card>
         )}
 
-        <Card>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink/5 text-ink/60">
-              <BackupIcon width={17} height={17} />
+        {user?.role === 'admin' && (
+          <Card>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink/5 text-ink/60">
+                <BackupIcon width={17} height={17} />
+              </div>
+              <h3 className="font-display text-sm font-extrabold text-ink">Datensicherung</h3>
             </div>
-            <h3 className="font-display text-sm font-extrabold text-ink">Datensicherung</h3>
-          </div>
-          <p className="mb-3 text-sm text-ink/55">
-            Sichern Sie alle Daten Ihres Unternehmens (Fahrten, Fahrer, Fuhrpark) als JSON-Datei — der digitale Ersatz für das Papier-Fahrtenbuch.
-          </p>
-          <Button variant="secondary" fullWidth onClick={handleBackup}>
-            Sicherungskopie herunterladen
-          </Button>
-        </Card>
+            <p className="mb-3 text-sm text-ink/55">
+              Sichern Sie alle Daten Ihres Unternehmens (Fahrten, Fahrer, Fuhrpark) als JSON-Datei — der digitale Ersatz für das Papier-Fahrtenbuch.
+            </p>
+            <Button variant="secondary" fullWidth onClick={handleBackup}>
+              Sicherungskopie herunterladen
+            </Button>
+          </Card>
+        )}
 
         <Button variant="danger" fullWidth size="lg" icon={<LogoutIcon width={18} height={18} />} onClick={handleLogout}>
           Abmelden

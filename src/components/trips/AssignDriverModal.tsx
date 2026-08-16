@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Trip } from '../../types';
+import { getResponsibleDriverIds } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
 import { Modal } from '../ui/Modal';
@@ -28,7 +29,9 @@ export function AssignDriverModal({
     if (!driverId || !company || user?.role !== 'admin' || trip.companyId !== company.id) return;
     const driver = db.users.getForCompany(company.id, driverId);
     if (!driver || driver.role !== 'driver') return;
-    db.trips.updateForCompany(company.id, trip.id, { driverId });
+    const responsibleVehicles = db.vehicles.byCompany(company.id).filter((vehicle) => getResponsibleDriverIds(vehicle).includes(driverId));
+    const vehicleId = trip.vehicleId ?? (responsibleVehicles.length === 1 ? responsibleVehicles[0].id : undefined);
+    db.trips.updateForCompany(company.id, trip.id, { driverId, vehicleId });
     onAssigned();
     setDriverId('');
   };
@@ -39,6 +42,9 @@ export function AssignDriverModal({
         <p className="text-sm text-ink/60">
           Fahrt für <span className="font-bold text-ink">{trip.customerName}</span> ({trip.pickupAddress} →{' '}
           {trip.destinationAddress}) einem Fahrer zuweisen.
+        </p>
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-ink/60">
+          Wenn diesem Fahrer genau ein Fahrzeug zugeordnet ist, wird es automatisch mit der Fahrt verknüpft.
         </p>
         <Field label="Fahrer" required>
           <Select value={driverId} onChange={(e) => setDriverId(e.target.value)} autoFocus>

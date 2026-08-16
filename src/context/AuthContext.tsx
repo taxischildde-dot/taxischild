@@ -33,6 +33,7 @@ interface AuthContextValue extends AuthState {
     licenseType?: string;
     workDays?: Weekday[];
   }) => Promise<AuthResult>;
+  deleteDriver: (driverId: string) => Promise<AuthResult>;
   updateCompanyName: (name: string) => void;
   updateProfile: (patch: Partial<Pick<User, 'name' | 'phone'>>) => void;
 }
@@ -168,6 +169,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, inviteUrl, message: `Einladung erstellt für ${name.trim()}` };
   };
 
+  const deleteDriver: AuthContextValue['deleteDriver'] = async (driverId) => {
+    if (!state.company || !state.user || state.user.role !== 'admin') {
+      return { ok: false, error: 'Nur die Geschäftsführung kann Fahrer entfernen' };
+    }
+
+    const { data: vehicles, error: vehicleReadError } = await supabase
+      .from('vehicles')
+      .select('id,assigned_driver_ids')
+      .eq('company_id', state.company.id);
+    if (vehicleReadError) return { ok: false, error: 'Die Fahrzeugzuweisungen konnten nicht geprüft werden' };
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', driverId)
+      .eq('company_id', state.company.id)
+      .eq('role', 'driver');
+    if (profileError) return { ok: false, error: 'Der Fahrerzugang konnte nicht entfernt werden' };
+
+    const vehicleUpdates = (vehicles ?? [])
+      .filter((vehicle) => Array.isArray(vehicle.assigned_driver_ids) && vehicle.assigned_driver_ids.includes(driverId))
+      .map((vehicle) => supabase
+        .from('vehicles')
+        .update({ assigned_driver_ids: vehicle.assigned_driver_ids.filter((id: string) => id !== driverId) })
+        .eq('id', vehicle.id)
+        .eq('company_id', state.company!.id));
+    await Promise.all(vehicleUpdates);
+    await hydrateCompanyCache(state.company.id);
+    return { ok: true, message: 'Der Fahrerzugang wurde entfernt.' };
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setState({ user: null, company: null, loading: false });
@@ -188,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, resendConfirmation, registerCompany, logout, addDriver, updateCompanyName, updateProfile }),
+    () => ({ ...state, login, resendConfirmation, registerCompany, logout, addDriver, deleteDriver, updateCompanyName, updateProfile }),
     // The auth handlers intentionally close over the current authenticated state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state],

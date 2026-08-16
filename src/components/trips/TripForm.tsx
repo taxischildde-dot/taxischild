@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { PaymentMethod, Trip } from '../../types';
+import { getResponsibleDriverIds } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
 import { DEFAULT_CURRENCY } from '../../lib/format';
@@ -23,6 +24,10 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
     [company],
   );
   const companyVehicles = useMemo(() => (company ? db.vehicles.byCompany(company.id) : []), [company]);
+  const availableVehicles = useMemo(
+    () => user?.role === 'driver' ? companyVehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(user.id)) : companyVehicles,
+    [companyVehicles, user],
+  );
 
   const [customerName, setCustomerName] = useState(existingTrip?.customerName ?? '');
   const [customerPhone, setCustomerPhone] = useState(existingTrip?.customerPhone ?? '');
@@ -39,7 +44,9 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
   const [price, setPrice] = useState(existingTrip?.price != null ? String(existingTrip.price) : '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(existingTrip?.paymentMethod ?? 'cash');
   const [driverId, setDriverId] = useState(existingTrip?.driverId ?? (user?.role === 'driver' ? user.id : ''));
-  const [vehicleId, setVehicleId] = useState(existingTrip?.vehicleId ?? '');
+  const [vehicleId, setVehicleId] = useState(
+    existingTrip?.vehicleId ?? (user?.role === 'driver' && availableVehicles.length === 1 ? availableVehicles[0].id : ''),
+  );
   const [notes, setNotes] = useState(existingTrip?.notes ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -196,7 +203,17 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
 
         {user?.role === 'admin' && (
           <Field label="Fahrer" hint="optional — kann später zugewiesen werden">
-            <Select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
+            <Select
+              value={driverId}
+              onChange={(e) => {
+                const nextDriverId = e.target.value;
+                setDriverId(nextDriverId);
+                if (!vehicleId && nextDriverId) {
+                  const responsibleVehicles = companyVehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(nextDriverId));
+                  if (responsibleVehicles.length === 1) setVehicleId(responsibleVehicles[0].id);
+                }
+              }}
+            >
               <option value="">Nicht zugewiesen</option>
               {companyDrivers.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -208,11 +225,11 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
         )}
       </div>
 
-      {companyVehicles.length > 0 && (
+      {availableVehicles.length > 0 && (
         <Field label="Fahrzeug" hint="optional">
           <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
             <option value="">Kein Fahrzeug zugewiesen</option>
-            {companyVehicles.map((v) => (
+            {availableVehicles.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.plate} — {v.model}
               </option>

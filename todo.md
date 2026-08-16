@@ -58,4 +58,10 @@
 - [x] Make driver invitation and activation public and password-based so drivers do not trigger Vercel deployment passwords.
 - [x] Ensure invited drivers are correctly added as profiles in the company and listed in the driver management view.
 - [x] Enable assigning and replacing responsible drivers during vehicle creation and editing.
-- [ ] Ensure Vercel Production deployment protection is disabled or configured so customer invite links are publicly reachable without a Vercel access code.
+- [x] Ensure Vercel Production deployment protection is disabled or configured so customer invite links are publicly reachable without a Vercel access code.
+- [x] Implement interactive driver status cards on the admin dashboard showing daily logs and trips on demand.
+- [x] Enable editing and deleting drivers securely from the admin settings and user list.
+- [x] Hide heavy monthly reports behind on-demand buttons so the admin view stays clean.
+- [x] Restrict driver portal views to assigned vehicles, today's trips, and trip notification alerts.
+- [x] Add unit coverage for new driver-trip notification deduplication and daily-only driver scoping.
+- [ ] Verify the Supabase Realtime publication includes trips for instant in-app updates; keep the 30-second polling fallback for deployments where Realtime is not enabled.

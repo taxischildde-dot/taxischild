@@ -34,8 +34,10 @@ export default function FleetPage() {
     void hydrateCompanyCache(companyId).then(() => setRefreshTick((n) => n + 1));
   }, [companyId]);
 
-  const vehicles = companyId ? db.vehicles.byCompany(companyId) : [];
-  const drivers = companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
+  const vehicles = companyId
+    ? db.vehicles.byCompany(companyId).filter((vehicle) => user?.role === 'admin' || (user ? getResponsibleDriverIds(vehicle).includes(user.id) : false))
+    : [];
+  const drivers = user?.role === 'admin' && companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);

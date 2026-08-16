@@ -11,6 +11,7 @@ import { useTripActions } from '../hooks/useTripActions';
 import { SearchIcon } from '../components/ui/Icons';
 import type { Trip, TripStatus } from '../types';
 import { TRIP_STATUS_LABEL } from '../lib/labels';
+import { toDateKey } from '../lib/format';
 
 type FilterKey = 'all' | TripStatus | 'unassigned';
 
@@ -26,6 +27,7 @@ export default function TripsPage() {
   const [assigningTrip, setAssigningTrip] = useState<Trip | null>(null);
 
   const allCompanyTrips = company ? db.trips.byCompany(company.id) : [];
+  const todayKey = toDateKey();
   const unassignedCount = allCompanyTrips.filter((t) => !t.driverId && t.status !== 'cancelled').length;
 
   const filters: Array<{ key: FilterKey; label: string; badge?: number }> = useMemo(() => {
@@ -44,7 +46,9 @@ export default function TripsPage() {
 
   const trips = !company || !user
     ? []
-    : (user.role === 'admin' ? allCompanyTrips : allCompanyTrips.filter((t) => t.driverId === user.id))
+    : (user.role === 'admin'
+      ? allCompanyTrips
+      : allCompanyTrips.filter((t) => t.driverId === user.id && toDateKey(new Date(t.scheduledAt)) === todayKey))
         .filter((t) => {
           if (filter === 'all') return true;
           if (filter === 'unassigned') return !t.driverId && t.status !== 'cancelled';
@@ -63,7 +67,7 @@ export default function TripsPage() {
 
   return (
     <div>
-      <TopBar title="Fahrten" subtitle={`${trips.length} Buchungen`} />
+      <TopBar title={user?.role === 'driver' ? 'Meine Fahrten heute' : 'Fahrten'} subtitle={`${trips.length} ${user?.role === 'driver' ? 'Fahrten heute' : 'Buchungen'}`} />
 
       <div className="space-y-4 px-4 pt-4">
         <Input
