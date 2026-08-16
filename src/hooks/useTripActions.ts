@@ -13,10 +13,12 @@ export function useTripActions({
   actor,
   company,
   onChange,
+  onError,
 }: {
   actor: User | null;
   company: Company | null;
   onChange: () => void;
+  onError?: (message: string) => void;
 }) {
   const canManage = (trip: Trip) => {
     if (!actor || !company || trip.companyId !== company.id) return false;
@@ -27,8 +29,14 @@ export function useTripActions({
     if (!canManage(trip)) return;
     const next = flow[trip.status];
     if (!next) return;
-    db.trips.updateForCompany(company!.id, trip.id, { status: next });
-    onChange();
+    try {
+      const updated = db.trips.updateForCompany(company!.id, trip.id, { status: next });
+      if (!updated) throw new Error('Die Fahrt konnte nicht gefunden werden.');
+      onChange();
+    } catch (error) {
+      console.error('[TaxiSchild] Trip status update failed', error);
+      onError?.('Die Fahrt konnte nicht aktualisiert werden. Bitte erneut versuchen.');
+    }
   };
 
   const cancel = (trip: Trip) => {
@@ -40,12 +48,18 @@ export function useTripActions({
       window.alert('Für eine Stornierung ist ein Grund erforderlich.');
       return;
     }
-    db.trips.updateForCompany(company!.id, trip.id, {
-      status: 'cancelled',
-      cancellationReason,
-      cancelledAt: new Date().toISOString(),
-    });
-    onChange();
+    try {
+      const updated = db.trips.updateForCompany(company!.id, trip.id, {
+        status: 'cancelled',
+        cancellationReason,
+        cancelledAt: new Date().toISOString(),
+      });
+      if (!updated) throw new Error('Die Fahrt konnte nicht gefunden werden.');
+      onChange();
+    } catch (error) {
+      console.error('[TaxiSchild] Trip cancellation failed', error);
+      onError?.('Die Fahrt konnte nicht storniert werden. Bitte erneut versuchen.');
+    }
   };
 
   return { advance, cancel };

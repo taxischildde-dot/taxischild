@@ -74,5 +74,7 @@
 - [x] Ensure automatic cloud persistence so data survives device loss or replacement.
 - [x] Harden app against network disconnects, polling spikes, and state re-renders for large multi-company fleets.
 - [x] Document production domain configuration (Custom Domain), Supabase connection pooling, automated backups, and phased rollout for multiple taxi companies.
-- [ ] Run supabase_performance_indexes.sql in the production Supabase project and verify the indexes exist.
+- [x] Run supabase_performance_indexes.sql in the production Supabase project and verify the indexes exist.
 - [ ] Move long-range employer reports to paginated or server-side aggregate queries before large multi-year archives are onboarded.
+- [x] Run supabase_audit_log.sql in the production Supabase project and verify the audit log table and RLS policies were created successfully.
+- [x] Fix trip status change actions (Start/Complete) and map links in TripCard so they never trigger unhandled errors or unresponsive error boundaries.

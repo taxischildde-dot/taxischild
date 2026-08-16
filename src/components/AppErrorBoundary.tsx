@@ -12,12 +12,21 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
   }
 
   componentDidCatch(error: Error) {
-    console.error('[TaxiSchild] Unhandled app error', error);
+    console.error('[TaxiSchild] Unhandled app error', error.stack ?? error.message, window.location.href);
+    try {
+      window.sessionStorage.setItem('taxischild_disable_native_alerts_until', String(Date.now() + 120000));
+    } catch {
+      // Recovery must still work if browser storage is unavailable.
+    }
   }
 
   private recover = () => {
-    this.setState({ hasError: false });
-    window.location.assign('/');
+    try {
+      window.sessionStorage.setItem('taxischild_disable_native_alerts_until', String(Date.now() + 120000));
+    } catch {
+      // Continue with a full navigation.
+    }
+    window.location.replace('/login');
   };
 
   render() {
@@ -31,9 +40,9 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
             Ihre gespeicherten Daten bleiben erhalten. Öffnen Sie die Startseite erneut oder laden Sie die Anwendung neu.
           </p>
           <div className="mt-5 flex gap-3">
-            <button type="button" onClick={this.recover} className="flex-1 rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold text-asphalt-950">
-              Zur Startseite
-            </button>
+            <a href="/login" onClick={() => this.recover()} className="flex-1 rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold text-asphalt-950">
+              Zur Anmeldung
+            </a>
             <button type="button" onClick={() => window.location.reload()} className="flex-1 rounded-xl bg-ink px-4 py-3 text-sm font-extrabold text-cream-100">
               Neu laden
             </button>

@@ -40,14 +40,25 @@ export function AppLayout() {
     let active = true;
     let firstSync = true;
 
+    const nativeAlertsDisabledUntil = Number(window.sessionStorage.getItem('taxischild_disable_native_alerts_until') ?? '0');
     const notifyDriver = (title: string, body: string, path: string) => {
+      if (Date.now() < nativeAlertsDisabledUntil) return;
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      const notice = new Notification(title, { body, icon: '/icons/icon-192.png' });
-      notice.onclick = () => {
-        window.focus();
-        notice.close();
-        navigate(path);
-      };
+      try {
+        const notice = new Notification(title, { body, icon: '/icons/icon-192.png' });
+        notice.onclick = () => {
+          try {
+            window.focus();
+            notice.close();
+            navigate(path);
+          } catch (error) {
+            console.warn('[TaxiSchild] Notification navigation fallback used', error);
+            window.location.href = path;
+          }
+        };
+      } catch (error) {
+        console.warn('[TaxiSchild] Native notification was unavailable', error);
+      }
     };
 
     const refreshDriverTrips = async () => {

@@ -19,8 +19,9 @@ export default function TripsPage() {
   const { user, company } = useAuth();
   const navigate = useNavigate();
   const [refreshTick, setRefreshTick] = useState(0);
+  const [actionError, setActionError] = useState('');
   const forceRefresh = () => setRefreshTick((n) => n + 1);
-  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh });
+  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh, onError: setActionError });
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [query, setQuery] = useState('');
@@ -70,6 +71,7 @@ export default function TripsPage() {
       <TopBar title={user?.role === 'driver' ? 'Meine Fahrten heute' : 'Fahrten'} subtitle={`${trips.length} ${user?.role === 'driver' ? 'Fahrten heute' : 'Buchungen'}`} />
 
       <div className="space-y-4 px-4 pt-4">
+        {actionError && <div className="flex items-center justify-between gap-3 rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger"><span>{actionError}</span><button type="button" onClick={() => setActionError('')} className="font-extrabold underline">Schließen</button></div>}
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}

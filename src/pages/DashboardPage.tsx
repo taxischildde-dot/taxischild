@@ -23,8 +23,9 @@ export default function DashboardPage() {
   const { user, company } = useAuth();
   const navigate = useNavigate();
   const [, setRefreshTick] = useState(0);
+  const [actionError, setActionError] = useState('');
   const forceRefresh = () => setRefreshTick((n) => n + 1);
-  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh });
+  const { advance, cancel } = useTripActions({ actor: user, company, onChange: forceRefresh, onError: setActionError });
   const [assigningTrip, setAssigningTrip] = useState<Trip | null>(null);
 
   const trips = !company || !user ? [] : user.role === 'admin'
@@ -87,6 +88,7 @@ export default function DashboardPage() {
       />
 
       <div className="space-y-5 px-4 pt-4">
+        {actionError && <div className="flex items-center justify-between gap-3 rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger"><span>{actionError}</span><button type="button" onClick={() => setActionError('')} className="font-extrabold underline">Schließen</button></div>}
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Fahrten heute" value={String(todayTrips.length)} tone="dark" />
           <StatCard label="Umsatz heute (bekannt)" value={formatMoney(todayRevenue)} tone="amber" />
