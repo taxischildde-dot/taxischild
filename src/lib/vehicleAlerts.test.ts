@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vehicle } from '../types';
+import { isVehicleAssignedToUser } from '../types';
 import { getAssignedVehicleSignatures, getChangedVehicleIds, vehicleAssignmentMessage } from './vehicleAlerts';
 
 const vehicle = (patch: Partial<Vehicle> = {}): Vehicle => ({
@@ -14,6 +15,10 @@ const vehicle = (patch: Partial<Vehicle> = {}): Vehicle => ({
 });
 
 describe('vehicle alerts', () => {
+  it('matches a pending email assignment after the driver profile is activated', () => {
+    expect(isVehicleAssignedToUser({ assignedDriverIds: ['email:driver@example.test'] }, { id: 'driver-1', email: 'driver@example.test' })).toBe(true);
+  });
+
   it('creates signatures only for vehicles responsible to the driver', () => {
     const signatures = getAssignedVehicleSignatures([
       vehicle(),

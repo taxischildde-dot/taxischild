@@ -40,7 +40,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!companyId || !userId || !isSupabaseConfigured || userRole !== 'driver') return;
     const refreshTrips = () => {
-      void hydrateCompanyCache(companyId).finally(() => forceRefresh());
+      void hydrateCompanyCache(companyId, { userRole: 'driver', userId }).finally(() => forceRefresh());
     };
     const channel = supabase
       .channel(`driver-trips-${companyId}-${userId}`)

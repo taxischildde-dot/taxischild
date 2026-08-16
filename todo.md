@@ -41,17 +41,17 @@
 - [x] Add an admin dashboard driver-status board with red active-trip, green waiting/break, and black unavailable states for sickness/leave/holiday.
 - [x] Expand the desktop dashboard layout beyond the narrow mobile column while preserving responsive mobile behavior.
 - [x] Add tests for daily-log dates, role permissions, driver statuses, and responsive dashboard behavior, then publish the update.
-- [ ] Define production SaaS readiness requirements for multiple German taxi companies, including real authentication, tenant isolation, backups, auditability, and cross-device synchronization.
-- [ ] Prepare a pilot onboarding flow for at least two taxi companies with separate company workspaces and driver invitations.
+- [x] Define production SaaS readiness requirements for multiple German taxi companies, including real authentication, tenant isolation, backups, auditability, and cross-device synchronization.
+- [x] Prepare a pilot onboarding flow for at least two taxi companies with separate company workspaces and driver invitations.
 - [ ] Define pilot success metrics, feedback capture, support process, and data migration/export safeguards before subscriptions.
 - [ ] Create a pre-subscription launch checklist covering hosting, privacy/security, terms, billing, and operational support.
 - [ ] Replace browser-local persistence with a server-backed multi-company data layer and remove production reliance on localStorage.
-- [ ] Replace local password storage and demo login with secure account activation, sign-in, password recovery, and driver invitation flows.
-- [ ] Remove demo credentials, seeded-company controls, and user-visible demo language from the production experience.
+- [x] Replace local password storage and demo login with secure account activation, sign-in, password recovery, and driver invitation flows.
+- [x] Remove demo credentials, seeded-company controls, and user-visible demo language from the production experience.
 - [ ] Implement production data migration, audit logging, backups, and cross-device synchronization before onboarding real companies.
 - [x] Fix company registration so email confirmation is clearly required and the user is not redirected into a misleading login error.
 - [x] Add the production callback URL and friendly unconfirmed-email handling for Supabase Auth.
-- [ ] Test registration, confirmation, login, and deployment after publishing the fix.
+- [x] Test registration, confirmation, login, and deployment after publishing the fix.
 - [x] Fix the Supabase confirmation link when it redirects to an inaccessible or unapproved URL, including a safe in-app callback route and documented Vercel redirect settings.
 - [x] Add a resend-confirmation button and helper method to the login and auth context so unconfirmed users can easily request a fresh email link.
 - [x] Add unit coverage for unconfirmed-email detection, resend rate-limit messaging, and generic authentication errors.
@@ -72,3 +72,7 @@
 - [x] Prevent white-screen crashes when clicking driver vehicle or trip notifications.
 - [x] Add a quick trip creation modal directly to the employer driver status card with autocomplete for recent customers and addresses.
 - [x] Ensure automatic cloud persistence so data survives device loss or replacement.
+- [x] Harden app against network disconnects, polling spikes, and state re-renders for large multi-company fleets.
+- [x] Document production domain configuration (Custom Domain), Supabase connection pooling, automated backups, and phased rollout for multiple taxi companies.
+- [ ] Run supabase_performance_indexes.sql in the production Supabase project and verify the indexes exist.
+- [ ] Move long-range employer reports to paginated or server-side aggregate queries before large multi-year archives are onboarded.

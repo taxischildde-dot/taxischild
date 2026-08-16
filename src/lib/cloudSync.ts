@@ -6,6 +6,26 @@ type Row = Record<string, unknown>;
 
 const asString = (value: unknown): string | undefined => (typeof value === 'string' && value.length > 0 ? value : undefined);
 
+export async function writeAuditLog(params: {
+  companyId: string;
+  actorId: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase.from('audit_logs').insert({
+    company_id: params.companyId,
+    actor_id: params.actorId,
+    action: params.action,
+    entity_type: params.entityType,
+    entity_id: params.entityId ?? null,
+    metadata: params.metadata ?? {},
+  });
+  if (error) console.warn('[TaxiSchild] Audit log unavailable; core action remains saved', error.message);
+}
+
 function mapUser(row: Row): User {
   return {
     id: String(row.id),
@@ -156,14 +176,54 @@ function mapDailyLog(row: Row): DailyLog {
   };
 }
 
-export async function hydrateCompanyCache(companyId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const [companyResult, profilesResult, tripsResult, vehiclesResult, dailyLogsResult] = await Promise.all([
-    supabase.from('companies').select('*').eq('id', companyId).maybeSingle(),
-    supabase.from('profiles').select('*').eq('company_id', companyId),
-    supabase.from('trips').select('*').eq('company_id', companyId).order('scheduled_at', { ascending: false }),
-    supabase.from('vehicles').select('*').eq('company_id', companyId),
-    supabase.from('daily_logs').select('*').eq('company_id', companyId).order('date', { ascending: false }),
-  ]);
+export type HydrationScope = { userRole?: 'admin' | 'driver'; userId?: string; includeHistory?: boolean };
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = 15000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Die Cloud-Anfrage hat zu lange gedauert')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function hydrateCompanyCache(companyId: string, scope: HydrationScope = {}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const isDriverScope = scope.userRole === 'driver' && Boolean(scope.userId);
+  const recentCutoff = scope.includeHistory ? null : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const profilesQuery = isDriverScope
+    ? supabase.from('profiles').select('*').eq('company_id', companyId).eq('id', scope.userId!)
+    : supabase.from('profiles').select('*').eq('company_id', companyId);
+  const tripsQuery = isDriverScope
+    ? supabase.from('trips').select('*').eq('company_id', companyId).eq('driver_id', scope.userId!).order('scheduled_at', { ascending: false })
+    : supabase.from('trips').select('*').eq('company_id', companyId).order('scheduled_at', { ascending: false });
+  const logsQuery = isDriverScope
+    ? supabase.from('daily_logs').select('*').eq('company_id', companyId).eq('driver_id', scope.userId!).order('date', { ascending: false })
+    : supabase.from('daily_logs').select('*').eq('company_id', companyId).order('date', { ascending: false });
+  if (recentCutoff) {
+    tripsQuery.gte('scheduled_at', recentCutoff);
+    logsQuery.gte('date', recentCutoff.slice(0, 10));
+  }
+  let companyResult;
+  let profilesResult;
+  let tripsResult;
+  let vehiclesResult;
+  let dailyLogsResult;
+  try {
+    [companyResult, profilesResult, tripsResult, vehiclesResult, dailyLogsResult] = await withTimeout(Promise.all([
+      supabase.from('companies').select('*').eq('id', companyId).maybeSingle(),
+      profilesQuery,
+      tripsQuery,
+      supabase.from('vehicles').select('*').eq('company_id', companyId),
+      logsQuery,
+    ]));
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Die Cloud konnte nicht erreicht werden' };
+  }
 
   const firstError = [companyResult, profilesResult, tripsResult, vehiclesResult, dailyLogsResult].find((result) => result.error)?.error;
   if (firstError) return { ok: false, error: firstError.message };

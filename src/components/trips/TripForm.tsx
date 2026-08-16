@@ -3,7 +3,7 @@ import type { PaymentMethod, Trip } from '../../types';
 import { isVehicleAssignedToUser } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
-import { syncTripToCloud } from '../../lib/cloudSync';
+import { syncTripToCloud, writeAuditLog } from '../../lib/cloudSync';
 import { DEFAULT_CURRENCY } from '../../lib/format';
 import { toLocalInputValue } from '../../lib/format';
 import { Field, Input, Select, Textarea } from '../ui/Field';
@@ -115,6 +115,14 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
       setError(`Die Fahrt wurde lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
       return;
     }
+    void writeAuditLog({
+      companyId: company.id,
+      actorId: user.id,
+      action: isEdit ? 'trip.updated' : 'trip.created',
+      entityType: 'trip',
+      entityId: saved.id,
+      metadata: { driverId: saved.driverId ?? null, customerName: saved.customerName },
+    });
     onSaved(saved);
   };
 

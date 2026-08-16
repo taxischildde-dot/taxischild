@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
+import { hydrateCompanyCache } from '../lib/cloudSync';
 import { TopBar } from '../components/layout/TopBar';
 import { Card, EmptyState } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -27,6 +28,16 @@ export default function ReportsPage() {
   const { user, company } = useAuth();
   const [period, setPeriod] = useState<Period>(user?.role === 'driver' ? 'today' : 'month');
   const [openPanel, setOpenPanel] = useState<ReportPanel>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const companyId = company?.id;
+  const userId = user?.id;
+  const userRole = user?.role;
+
+  useEffect(() => {
+    if (!companyId || !userId || !userRole) return;
+    setHistoryLoading(true);
+    void hydrateCompanyCache(companyId, { userRole, userId, includeHistory: true }).finally(() => setHistoryLoading(false));
+  }, [companyId, userId, userRole]);
 
   const allTrips = useMemo(() => (company ? db.trips.byCompany(company.id) : []), [company]);
   const drivers = useMemo(
@@ -74,6 +85,7 @@ export default function ReportsPage() {
       <TopBar title="Berichte" subtitle={user?.role === 'admin' ? 'Nur bei Bedarf öffnen' : 'Ihre Tages- und Arbeitsunterlagen'} />
 
       <div className="space-y-5 px-4 pt-4">
+        {historyLoading && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Berichtsdaten werden aus der Cloud geladen…</p>}
         <div className="grid gap-3 sm:grid-cols-3">
           <button
             type="button"

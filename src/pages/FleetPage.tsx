@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { getResponsibleDriverIds, isVehicleAssignedToUser } from '../types';
-import { deleteVehicleFromCloud, hydrateCompanyCache, syncVehicleToCloud } from '../lib/cloudSync';
+import { deleteVehicleFromCloud, hydrateCompanyCache, syncVehicleToCloud, writeAuditLog } from '../lib/cloudSync';
 import { supabase } from '../lib/supabase';
 import type { User, Vehicle, VehicleStatus } from '../types';
 import { TopBar } from '../components/layout/TopBar';
@@ -44,8 +44,8 @@ export default function FleetPage() {
 
   useEffect(() => {
     if (!companyId) return;
-    void hydrateCompanyCache(companyId).then(() => setRefreshTick((n) => n + 1));
-  }, [companyId]);
+    void hydrateCompanyCache(companyId, user?.role === 'driver' && user.id ? { userRole: 'driver', userId: user.id } : {}).then(() => setRefreshTick((n) => n + 1));
+  }, [companyId, user?.id, user?.role]);
 
   useEffect(() => {
     if (!companyId || user?.role !== 'admin') {
@@ -105,6 +105,7 @@ export default function FleetPage() {
       setSyncError(`Das Fahrzeug wurde lokal entfernt, aber nicht aus der Cloud: ${result.error}`);
       return;
     }
+    void writeAuditLog({ companyId: company.id, actorId: user.id, action: 'vehicle.deleted', entityType: 'vehicle', entityId: v.id, metadata: { plate: v.plate } });
     await hydrateCompanyCache(company.id);
     forceRefresh();
   };
@@ -137,6 +138,14 @@ export default function FleetPage() {
       setSyncError(`Das Fahrzeug wurde lokal gespeichert, aber nicht in der Cloud: ${result.error}`);
       return;
     }
+    void writeAuditLog({
+      companyId: company.id,
+      actorId: user.id,
+      action: editing ? 'vehicle.updated' : 'vehicle.created',
+      entityType: 'vehicle',
+      entityId: saved.id,
+      metadata: { plate: saved.plate, assignedDriverIds: saved.assignedDriverIds ?? [] },
+    });
     const hydration = await hydrateCompanyCache(company.id);
     if (!hydration.ok) {
       setSyncError(`Das Fahrzeug wurde gespeichert, aber die Aktualisierung konnte nicht geladen werden: ${hydration.error}`);

@@ -10,6 +10,15 @@ import { PlusIcon, TripIcon } from '../ui/Icons';
 
 const seenTripsKey = (driverId: string) => `taxischild_seen_driver_trips_${driverId}`;
 
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,10 +51,15 @@ export function AppLayout() {
     };
 
     const refreshDriverTrips = async () => {
-      await hydrateCompanyCache(companyId);
+      try {
+        await hydrateCompanyCache(companyId, { userRole: 'driver', userId });
+      } catch (error) {
+        console.warn('[TaxiSchild] Driver refresh postponed after a network error', error);
+        return;
+      }
       if (!active) return;
       const trips = db.trips.byDriver(companyId, userId).filter((trip) => trip.status !== 'cancelled');
-      const seen = new Set<string>(JSON.parse(window.localStorage.getItem(storageKey) ?? '[]') as string[]);
+      const seen = new Set<string>(readJson<string[]>(storageKey, []));
       const unseen = firstSync && seen.size === 0 ? [] : trips.filter((trip) => !seen.has(trip.id));
 
       if (unseen.length > 0) {
@@ -63,7 +77,7 @@ export function AppLayout() {
       window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
 
       const assignedVehicles = db.vehicles.byCompany(companyId);
-      const previousVehicleState = JSON.parse(window.localStorage.getItem(vehicleStorageKey) ?? '{}') as Record<string, string>;
+      const previousVehicleState = readJson<Record<string, string>>(vehicleStorageKey, {});
       const currentVehicleState = getAssignedVehicleSignatures(assignedVehicles, { id: userId, email: userEmail });
       const vehicleChanges = getChangedVehicleIds(previousVehicleState, currentVehicleState);
       if (!firstSync && vehicleChanges.length > 0) {
@@ -82,7 +96,7 @@ export function AppLayout() {
     };
 
     void refreshDriverTrips();
-    const interval = window.setInterval(() => void refreshDriverTrips(), 30000);
+    const interval = window.setInterval(() => void refreshDriverTrips(), 60000);
     const channel = supabase
       .channel(`driver-alerts-${companyId}-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => void refreshDriverTrips())

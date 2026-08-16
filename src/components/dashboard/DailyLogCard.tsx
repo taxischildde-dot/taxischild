@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
-import { syncDailyLogToCloud } from '../../lib/cloudSync';
+import { syncDailyLogToCloud, writeAuditLog } from '../../lib/cloudSync';
 import { toDateKey, formatDurationMinutes, computeWorkMinutes } from '../../lib/format';
 import { Card } from '../ui/Card';
 import { Field, Input } from '../ui/Field';
@@ -47,6 +47,14 @@ export function DailyLogCard() {
       setSaveError(`Lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
       return;
     }
+    void writeAuditLog({
+      companyId: company.id,
+      actorId: user.id,
+      action: 'daily_log.updated',
+      entityType: 'daily_log',
+      entityId: savedLog.id,
+      metadata: { date: todayKey },
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
