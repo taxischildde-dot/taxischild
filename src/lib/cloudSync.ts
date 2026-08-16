@@ -42,34 +42,51 @@ function mapUser(row: Row): User {
   };
 }
 
+function tripCloudRow(trip: Trip) {
+  return {
+    id: trip.id,
+    company_id: trip.companyId,
+    customer_name: trip.customerName,
+    customer_phone: trip.customerPhone ?? null,
+    pickup_address: trip.pickupAddress,
+    destination_address: trip.destinationAddress,
+    destination_code: trip.destinationCode ?? null,
+    scheduled_at: trip.scheduledAt,
+    due_at: trip.dueAt ?? null,
+    price: trip.price ?? null,
+    currency: trip.currency,
+    status: trip.status === 'scheduled' ? 'planned' : trip.status,
+    payment_method: trip.paymentMethod === 'health_insurance' ? 'krankenkasse' : trip.paymentMethod === 'municipality_school' ? 'gemeinde' : trip.paymentMethod,
+    entry_source: trip.entrySource,
+    driver_id: trip.driverId ?? null,
+    created_by: trip.createdBy || null,
+    cancellation_reason: trip.cancellationReason ?? null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export async function syncTripToCloud(trip: Trip): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
-  const { error } = await supabase
-    .from('trips')
-    .upsert(
-      {
-        id: trip.id,
-        company_id: trip.companyId,
-        customer_name: trip.customerName,
-        customer_phone: trip.customerPhone ?? null,
-        pickup_address: trip.pickupAddress,
-        destination_address: trip.destinationAddress,
-        destination_code: trip.destinationCode ?? null,
-        scheduled_at: trip.scheduledAt,
-        due_at: trip.dueAt ?? null,
-        price: trip.price ?? null,
-        currency: trip.currency,
-        status: trip.status === 'scheduled' ? 'planned' : trip.status,
-        payment_method: trip.paymentMethod === 'health_insurance' ? 'krankenkasse' : trip.paymentMethod === 'municipality_school' ? 'gemeinde' : trip.paymentMethod,
-        entry_source: trip.entrySource,
-        driver_id: trip.driverId ?? null,
-        created_by: trip.createdBy || null,
-        cancellation_reason: trip.cancellationReason ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' },
-    );
+  const { error } = await supabase.from('trips').upsert(tripCloudRow(trip), { onConflict: 'id' });
   if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Existing trips must be updated with UPDATE rather than UPSERT. PostgreSQL RLS evaluates
+// an UPSERT as a possible INSERT first, but a driver is intentionally not allowed to insert
+// centrally created trips. A normal UPDATE preserves the strict driver ownership policy.
+export async function updateTripInCloud(trip: Trip): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { id: _id, company_id: _companyId, ...patch } = tripCloudRow(trip);
+  const { data, error } = await supabase
+    .from('trips')
+    .update(patch)
+    .eq('id', trip.id)
+    .eq('company_id', trip.companyId)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'Die Fahrt wurde nicht gefunden oder darf nicht aktualisiert werden' };
   return { ok: true };
 }
 

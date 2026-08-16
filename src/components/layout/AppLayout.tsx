@@ -7,8 +7,23 @@ import { hydrateCompanyCache } from '../../lib/cloudSync';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { BottomNav } from './BottomNav';
 import { PlusIcon, TripIcon } from '../ui/Icons';
+import { formatTime } from '../../lib/format';
 
 const seenTripsKey = (driverId: string) => `taxischild_seen_driver_trips_${driverId}`;
+const editedTripsKey = (driverId: string) => `taxischild_edited_driver_trips_${driverId}`;
+
+function tripEditSignature(trip: { customerName: string; pickupAddress: string; destinationAddress: string; destinationCode?: string; scheduledAt: string; dueAt?: string; price?: number; paymentMethod: string }): string {
+  return JSON.stringify([
+    trip.customerName,
+    trip.pickupAddress,
+    trip.destinationAddress,
+    trip.destinationCode ?? '',
+    trip.scheduledAt,
+    trip.dueAt ?? '',
+    trip.price ?? null,
+    trip.paymentMethod,
+  ]);
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -71,7 +86,11 @@ export function AppLayout() {
       if (!active) return;
       const trips = db.trips.byDriver(companyId, userId).filter((trip) => trip.status !== 'cancelled');
       const seen = new Set<string>(readJson<string[]>(storageKey, []));
+      const previousEdits = readJson<Record<string, string>>(editedTripsKey(userId), {});
       const unseen = firstSync && seen.size === 0 ? [] : trips.filter((trip) => !seen.has(trip.id));
+      const changedTrips = firstSync
+        ? []
+        : trips.filter((trip) => previousEdits[trip.id] && previousEdits[trip.id] !== tripEditSignature(trip));
 
       if (unseen.length > 0) {
         setTripAlert(unseen.length === 1 ? 'Eine neue Fahrt wurde Ihnen zugewiesen.' : `${unseen.length} neue Fahrten wurden Ihnen zugewiesen.`);
@@ -79,14 +98,28 @@ export function AppLayout() {
         notifyDriver(
           'TaxiSchild — Neue Fahrt',
           unseen.length === 1
-            ? `${firstTrip.customerName} um ${new Date(firstTrip.scheduledAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.`
+            ? `${firstTrip.customerName} um ${formatTime(firstTrip.scheduledAt)}.`
             : `${unseen.length} neue Fahrten stehen für Sie bereit.`,
+          '/trips',
+        );
+      } else if (changedTrips.length > 0) {
+        const changedTrip = changedTrips[0];
+        setTripAlert(changedTrips.length === 1 ? 'Eine Ihnen zugewiesene Fahrt wurde geändert.' : `${changedTrips.length} Ihnen zugewiesene Fahrten wurden geändert.`);
+        notifyDriver(
+          'TaxiSchild — Fahrt geändert',
+          changedTrips.length === 1
+            ? `${changedTrip.customerName} · Abholung ${formatTime(changedTrip.scheduledAt)}.`
+            : `${changedTrips.length} Ihrer Fahrten wurden geändert.`,
           '/trips',
         );
       }
 
       try {
         window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
+        window.localStorage.setItem(
+          editedTripsKey(userId),
+          JSON.stringify(Object.fromEntries(trips.map((trip) => [trip.id, tripEditSignature(trip)]))),
+        );
       } catch (error) {
         console.warn('[TaxiSchild] Driver trip seen-cache write skipped', error);
       }

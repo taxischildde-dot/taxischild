@@ -57,6 +57,32 @@ describe('local company data boundaries', () => {
     expect(db.trips.getForCompany(firstCompany.id, trip.id)?.status).toBe('scheduled');
   });
 
+  it('updates an assigned driver trip from scheduled to ongoing in its own company', () => {
+    const company = db.companies.create('FahrerTaxi');
+    const driver = db.users.create({
+      companyId: company.id,
+      role: 'driver',
+      name: 'Fahrer Eins',
+      email: 'fahrer@example.test',
+      password: 'secret',
+    });
+    const trip = db.trips.create({
+      companyId: company.id,
+      driverId: driver.id,
+      customerName: 'Frau Meyer',
+      pickupAddress: 'Bahnhof',
+      destinationAddress: 'Klinik',
+      scheduledAt: '2026-08-16T08:00:00.000Z',
+      currency: 'EUR',
+      status: 'scheduled',
+      paymentMethod: 'invoice',
+      entrySource: 'central',
+      createdBy: 'admin-1',
+    });
+
+    expect(db.trips.updateForCompany(company.id, trip.id, { status: 'ongoing' })?.status).toBe('ongoing');
+  });
+
   it('stores a municipality-funded booking without requiring the final price', () => {
     const company = db.companies.create('SchulTaxi Nord');
     const trip = db.trips.create({

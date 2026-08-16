@@ -7,7 +7,7 @@
 import type { Company, User, Trip, Vehicle, DailyLog } from '../types';
 import { readAll, writeAll, uid } from './storage';
 import { isSupabaseConfigured, supabase } from './supabase';
-import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud } from './cloudSync';
+import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud, updateTripInCloud } from './cloudSync';
 
 const cloudWarn = (operation: string, error: { message: string } | null) => {
   if (error) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, error.message);
@@ -22,11 +22,14 @@ const syncProfilePatch = (id: string, patch: Partial<User>) => {
     .then(({ error }) => cloudWarn('profile update', error));
 };
 
-const syncTrip = (trip: Trip) => {
+const syncTrip = (trip: Trip, mode: 'create' | 'update') => {
   if (!isSupabaseConfigured) return;
-  void syncTripToCloud(trip).then((result) => {
-    if (!result.ok) console.warn(`[TaxiSchild] Supabase trip sync failed; local cache retained`, result.error);
-  });
+  const cloudRequest = mode === 'update' ? updateTripInCloud(trip) : syncTripToCloud(trip);
+  void cloudRequest
+    .then((result) => {
+      if (!result.ok) console.warn(`[TaxiSchild] Supabase trip sync failed; local cache retained`, result.error);
+    })
+    .catch((error) => console.warn('[TaxiSchild] Supabase trip sync crashed; local cache retained', error));
 };
 
 const syncVehicle = (vehicle: Vehicle) => {
@@ -116,7 +119,7 @@ export const db = {
     create: (trip: Omit<Trip, 'id' | 'createdAt'>): Trip => {
       const newTrip: Trip = { ...trip, id: uid('trp'), createdAt: new Date().toISOString() };
       writeAll(KEYS.trips, [...db.trips.all(), newTrip]);
-      syncTrip(newTrip);
+      syncTrip(newTrip, 'create');
       return newTrip;
     },
     update: (id: string, patch: Partial<Trip>): Trip | undefined => {
@@ -125,7 +128,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.trips, all);
-      syncTrip(all[idx]);
+      syncTrip(all[idx], 'update');
       return all[idx];
     },
     updateForCompany: (companyId: string, id: string, patch: Partial<Trip>): Trip | undefined => {

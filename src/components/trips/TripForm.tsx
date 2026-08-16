@@ -3,7 +3,7 @@ import type { PaymentMethod, Trip } from '../../types';
 import { isVehicleAssignedToUser } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
-import { syncTripToCloud, writeAuditLog } from '../../lib/cloudSync';
+import { syncTripToCloud, updateTripInCloud, writeAuditLog } from '../../lib/cloudSync';
 import { DEFAULT_CURRENCY } from '../../lib/format';
 import { toLocalInputValue } from '../../lib/format';
 import { Field, Input, Select, Textarea } from '../ui/Field';
@@ -20,6 +20,7 @@ interface TripFormProps {
 export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: TripFormProps) {
   const { user, company } = useAuth();
   const isEdit = !!existingTrip;
+  const lockBillingFields = isEdit && user?.role === 'driver';
 
   const companyDrivers = useMemo(
     () => (company ? db.users.byCompany(company.id).filter((u) => u.role === 'driver') : []),
@@ -92,9 +93,9 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
       destinationCode: destinationCode.trim() || undefined,
       scheduledAt: new Date(scheduledAt).toISOString(),
       dueAt: hasDueAt && dueAt ? new Date(dueAt).toISOString() : undefined,
-      price: numericPrice,
+      price: lockBillingFields ? existingTrip?.price : numericPrice,
       currency: DEFAULT_CURRENCY,
-      paymentMethod,
+      paymentMethod: lockBillingFields ? existingTrip?.paymentMethod ?? paymentMethod : paymentMethod,
       notes: notes.trim() || undefined,
     };
 
@@ -109,7 +110,7 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
         createdBy: user.id,
       });
     }
-    const cloudResult = await syncTripToCloud(saved);
+    const cloudResult = isEdit ? await updateTripInCloud(saved) : await syncTripToCloud(saved);
     setSaving(false);
     if (!cloudResult.ok) {
       setError(`Die Fahrt wurde lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
@@ -186,12 +187,13 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
             onChange={(e) => setScheduledAt(e.target.value)}
           />
         </Field>
-        <Field label="Preis (EUR)" hint="optional — kann später durch die Geschäftsführung ergänzt werden">
+        <Field label="Preis (EUR)" hint={lockBillingFields ? 'Wird von der Geschäftsführung verwaltet' : 'optional — kann später durch die Geschäftsführung ergänzt werden'}>
           <Input
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="Preis offen"
             inputMode="decimal"
+            disabled={lockBillingFields}
           />
         </Field>
       </div>
@@ -218,7 +220,7 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Zahlungsart">
-          <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+          <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} disabled={lockBillingFields}>
             {Object.entries(PAYMENT_METHOD_LABEL).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

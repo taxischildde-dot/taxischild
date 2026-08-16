@@ -80,3 +80,5 @@
 - [x] Fix trip status change actions (Start/Complete) and map links in TripCard so they never trigger unhandled errors or unresponsive error boundaries.
 - [x] Add a cache-clearing recovery button to AppErrorBoundary that wipes corrupted local storage keys without logging out Supabase, preventing reload loops.
 - [x] Isolate trip state advance updates from unhandled hydration or Supabase sync failures so pressing Start Trip never triggers the error boundary.
+- [x] Capture and eliminate the remaining production exception that occurs only when a driver presses Fahrt starten by separating RLS-compatible trip updates from trip creation.
+- [x] Allow drivers to start, complete, and edit operational details of their assigned trips directly without waiting for admin action.
