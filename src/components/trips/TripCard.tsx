@@ -27,6 +27,7 @@ export function TripCard({ trip, driver, vehicle, showDriver, onAdvance, onCance
   const action = nextAction[trip.status];
   const isUnassigned = !trip.driverId;
   const hasDistinctDueTime = trip.dueAt && trip.dueAt !== trip.scheduledAt;
+  const mapUrl = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
   return (
     <div
@@ -48,17 +49,29 @@ export function TripCard({ trip, driver, vehicle, showDriver, onAdvance, onCance
       </div>
 
       <div className="mt-3 space-y-1.5 px-4">
-        <div className="flex items-start gap-2 text-sm text-ink/75">
+        <a
+          href={mapUrl(trip.pickupAddress)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-start gap-2 rounded-lg text-sm text-ink/75 underline-offset-2 transition hover:text-amber-700 hover:underline focus:outline-none focus:ring-2 focus:ring-amber-400"
+          aria-label={`Abholadresse in Google Maps öffnen: ${trip.pickupAddress}`}
+        >
           <PinIcon width={16} height={16} className="mt-0.5 shrink-0 text-amber-600" />
           <span className="leading-snug">{trip.pickupAddress}</span>
-        </div>
-        <div className="flex items-start gap-2 text-sm text-ink/75">
+        </a>
+        <a
+          href={mapUrl(trip.destinationAddress)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-start gap-2 rounded-lg text-sm text-ink/75 underline-offset-2 transition hover:text-amber-700 hover:underline focus:outline-none focus:ring-2 focus:ring-amber-400"
+          aria-label={`Zieladresse in Google Maps öffnen: ${trip.destinationAddress}`}
+        >
           <FlagIcon width={16} height={16} className="mt-0.5 shrink-0 text-ink/40" />
           <span className="leading-snug">
             {trip.destinationAddress}
             {trip.destinationCode && <span className="ml-1 font-meter font-bold text-ink/50">({trip.destinationCode})</span>}
           </span>
-        </div>
+        </a>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5 px-4 text-[0.68rem] font-bold text-ink/45">

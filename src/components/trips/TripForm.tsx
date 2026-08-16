@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import type { PaymentMethod, Trip } from '../../types';
-import { getResponsibleDriverIds } from '../../types';
+import { isVehicleAssignedToUser } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
+import { syncTripToCloud } from '../../lib/cloudSync';
 import { DEFAULT_CURRENCY } from '../../lib/format';
 import { toLocalInputValue } from '../../lib/format';
 import { Field, Input, Select, Textarea } from '../ui/Field';
@@ -11,11 +12,12 @@ import { PAYMENT_METHOD_LABEL } from '../../lib/labels';
 
 interface TripFormProps {
   existingTrip?: Trip;
+  defaultDriverId?: string;
   onSaved: (trip: Trip) => void;
   onCancel: () => void;
 }
 
-export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
+export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: TripFormProps) {
   const { user, company } = useAuth();
   const isEdit = !!existingTrip;
 
@@ -25,7 +27,7 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
   );
   const companyVehicles = useMemo(() => (company ? db.vehicles.byCompany(company.id) : []), [company]);
   const availableVehicles = useMemo(
-    () => user?.role === 'driver' ? companyVehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(user.id)) : companyVehicles,
+    () => user?.role === 'driver' ? companyVehicles.filter((vehicle) => isVehicleAssignedToUser(vehicle, user)) : companyVehicles,
     [companyVehicles, user],
   );
 
@@ -43,15 +45,22 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
   );
   const [price, setPrice] = useState(existingTrip?.price != null ? String(existingTrip.price) : '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(existingTrip?.paymentMethod ?? 'cash');
-  const [driverId, setDriverId] = useState(existingTrip?.driverId ?? (user?.role === 'driver' ? user.id : ''));
+  const [driverId, setDriverId] = useState(existingTrip?.driverId ?? defaultDriverId ?? (user?.role === 'driver' ? user.id : ''));
   const [vehicleId, setVehicleId] = useState(
     existingTrip?.vehicleId ?? (user?.role === 'driver' && availableVehicles.length === 1 ? availableVehicles[0].id : ''),
   );
   const [notes, setNotes] = useState(existingTrip?.notes ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const suggestionTrips = useMemo(() => {
+    if (!company || !user) return [];
+    return user.role === 'admin' ? db.trips.byCompany(company.id) : db.trips.byDriver(company.id, user.id);
+  }, [company, user]);
+  const customerSuggestions = [...new Set(suggestionTrips.map((trip) => trip.customerName).filter(Boolean))].slice(0, 100);
+  const pickupSuggestions = [...new Set(suggestionTrips.map((trip) => trip.pickupAddress).filter(Boolean))].slice(0, 100);
+  const destinationSuggestions = [...new Set(suggestionTrips.map((trip) => trip.destinationAddress).filter(Boolean))].slice(0, 100);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !company) return;
 
@@ -100,7 +109,12 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
         createdBy: user.id,
       });
     }
+    const cloudResult = await syncTripToCloud(saved);
     setSaving(false);
+    if (!cloudResult.ok) {
+      setError(`Die Fahrt wurde lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
+      return;
+    }
     onSaved(saved);
   };
 
@@ -112,6 +126,7 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="z. B. Hans Weber"
+            list="taxischild-customer-suggestions"
             autoFocus
           />
         </Field>
@@ -126,11 +141,13 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
       </div>
 
       <Field label="Abholort" required>
-        <Input
-          value={pickupAddress}
-          onChange={(e) => setPickupAddress(e.target.value)}
-          placeholder="Adresse oder Ort"
-        />
+                  <Input
+            value={pickupAddress}
+            onChange={(e) => setPickupAddress(e.target.value)}
+            placeholder="Adresse oder Ort"
+            list="taxischild-pickup-suggestions"
+          />
+
       </Field>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
@@ -139,6 +156,7 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
             value={destinationAddress}
             onChange={(e) => setDestinationAddress(e.target.value)}
             placeholder="Adresse oder Ort"
+            list="taxischild-destination-suggestions"
           />
         </Field>
         <Field label="Ziel-Kürzel" hint="optional, z. B. ROW">
@@ -209,7 +227,10 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
                 const nextDriverId = e.target.value;
                 setDriverId(nextDriverId);
                 if (!vehicleId && nextDriverId) {
-                  const responsibleVehicles = companyVehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(nextDriverId));
+                  const selectedDriver = companyDrivers.find((driver) => driver.id === nextDriverId);
+                  const responsibleVehicles = selectedDriver
+                    ? companyVehicles.filter((vehicle) => isVehicleAssignedToUser(vehicle, selectedDriver))
+                    : [];
                   if (responsibleVehicles.length === 1) setVehicleId(responsibleVehicles[0].id);
                 }
               }}
@@ -237,6 +258,10 @@ export function TripForm({ existingTrip, onSaved, onCancel }: TripFormProps) {
           </Select>
         </Field>
       )}
+
+      <datalist id="taxischild-customer-suggestions">{customerSuggestions.map((value) => <option key={value} value={value} />)}</datalist>
+      <datalist id="taxischild-pickup-suggestions">{pickupSuggestions.map((value) => <option key={value} value={value} />)}</datalist>
+      <datalist id="taxischild-destination-suggestions">{destinationSuggestions.map((value) => <option key={value} value={value} />)}</datalist>
 
       <Field label="Notizen" hint="optional">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Weitere Details..." />

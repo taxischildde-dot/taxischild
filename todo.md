@@ -67,3 +67,8 @@
 - [ ] Verify the Supabase Realtime publication includes trips for instant in-app updates; keep the 30-second polling fallback for deployments where Realtime is not enabled.
 - [x] Fix vehicle save persistence and ensure assigned drivers appear instantly on the dashboard and fleet views.
 - [x] Add real-time notifications for drivers when a vehicle is assigned or updated.
+- [x] Restore map navigation links for trip pickup and destination addresses.
+- [x] Allow assigning pending/invited drivers to vehicles before account activation.
+- [x] Prevent white-screen crashes when clicking driver vehicle or trip notifications.
+- [x] Add a quick trip creation modal directly to the employer driver status card with autocomplete for recent customers and addresses.
+- [x] Ensure automatic cloud persistence so data survives device loss or replacement.

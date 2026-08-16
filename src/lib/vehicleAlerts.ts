@@ -1,10 +1,10 @@
-import type { Vehicle } from '../types';
-import { getResponsibleDriverIds } from '../types';
+import type { User, Vehicle } from '../types';
+import { getResponsibleDriverIds, isVehicleAssignedToUser } from '../types';
 
-export function getAssignedVehicleSignatures(vehicles: Vehicle[], driverId: string): Record<string, string> {
+export function getAssignedVehicleSignatures(vehicles: Vehicle[], user: Pick<User, 'id' | 'email'>): Record<string, string> {
   return Object.fromEntries(
     vehicles
-      .filter((vehicle) => getResponsibleDriverIds(vehicle).includes(driverId))
+      .filter((vehicle) => isVehicleAssignedToUser(vehicle, user))
       .map((vehicle) => [vehicle.id, `${vehicle.plate}|${vehicle.model}|${vehicle.status}|${getResponsibleDriverIds(vehicle).join(',')}`]),
   );
 }

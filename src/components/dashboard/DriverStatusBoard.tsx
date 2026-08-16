@@ -3,11 +3,12 @@ import type { DriverAvailabilityStatus, User } from '../../types';
 import { db } from '../../lib/db';
 import { getDriverDashboardState } from '../../lib/driverStatus';
 import { computeWorkMinutes, formatDateTime, formatDurationMinutes, toDateKey } from '../../lib/format';
-import { getResponsibleDriverIds } from '../../types';
+import { isVehicleAssignedToUser } from '../../types';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Field';
 import { TripIcon, UsersIcon } from '../ui/Icons';
+import { TripForm } from '../trips/TripForm';
 
 const statusOptions: Array<{ value: DriverAvailabilityStatus; label: string }> = [
   { value: 'available', label: 'Wartet / verfügbar' },
@@ -20,6 +21,7 @@ const statusOptions: Array<{ value: DriverAvailabilityStatus; label: string }> =
 export function DriverStatusBoard({ companyId }: { companyId: string }) {
   const [, forceRefresh] = useState(0);
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [quickTripDriverId, setQuickTripDriverId] = useState<string | null>(null);
   const todayKey = toDateKey();
   const orderedDrivers = db.users
     .byCompany(companyId)
@@ -33,7 +35,7 @@ export function DriverStatusBoard({ companyId }: { companyId: string }) {
   );
   const selectedDailyLog = selectedDriver ? db.dailyLogs.byDriverAndDate(companyId, selectedDriver.id, todayKey) : undefined;
   const selectedVehicles = selectedDriver
-    ? db.vehicles.byCompany(companyId).filter((vehicle) => getResponsibleDriverIds(vehicle).includes(selectedDriver.id))
+    ? db.vehicles.byCompany(companyId).filter((vehicle) => isVehicleAssignedToUser(vehicle, selectedDriver))
     : [];
   const workedMinutes = selectedDailyLog
     ? computeWorkMinutes(selectedDailyLog.workStart, selectedDailyLog.workEnd, selectedDailyLog.breakMinutes ?? 0)
@@ -106,6 +108,14 @@ export function DriverStatusBoard({ companyId }: { companyId: string }) {
                     ))}
                   </Select>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickTripDriverId(driver.id)}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-400 px-3 py-2 text-xs font-extrabold text-asphalt-950 transition hover:bg-amber-500"
+                >
+                  <TripIcon width={14} height={14} />
+                  Neue Fahrt für diesen Fahrer
+                </button>
               </div>
             );
           })}
@@ -184,6 +194,23 @@ export function DriverStatusBoard({ companyId }: { companyId: string }) {
               )}
             </div>
           </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={Boolean(quickTripDriverId)}
+        onClose={() => setQuickTripDriverId(null)}
+        title={quickTripDriverId ? `Neue Fahrt — ${db.users.getForCompany(companyId, quickTripDriverId)?.name ?? 'Fahrer'}` : 'Neue Fahrt'}
+      >
+        {quickTripDriverId && (
+          <TripForm
+            defaultDriverId={quickTripDriverId}
+            onSaved={() => {
+              setQuickTripDriverId(null);
+              forceRefresh((value) => value + 1);
+            }}
+            onCancel={() => setQuickTripDriverId(null)}
+          />
         )}
       </Modal>
     </>

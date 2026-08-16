@@ -18,7 +18,7 @@ describe('vehicle alerts', () => {
     const signatures = getAssignedVehicleSignatures([
       vehicle(),
       vehicle({ id: 'vehicle-2', assignedDriverIds: ['driver-2'] }),
-    ], 'driver-1');
+    ], { id: 'driver-1', email: 'driver@example.test' });
 
     expect(Object.keys(signatures)).toEqual(['vehicle-1']);
     expect(signatures['vehicle-1']).toContain('WL-TX 101');

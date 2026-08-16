@@ -91,6 +91,13 @@ export function getResponsibleDriverIds(vehicle: Pick<Vehicle, 'assignedDriverId
   return vehicle.assignedDriverId ? [vehicle.assignedDriverId] : [];
 }
 
+export const pendingInviteRef = (inviteId: string): string => `invite:${inviteId}`;
+
+export function isVehicleAssignedToUser(vehicle: Pick<Vehicle, 'assignedDriverIds' | 'assignedDriverId'>, user: Pick<User, 'id' | 'email'>): boolean {
+  const ids = getResponsibleDriverIds(vehicle);
+  return ids.includes(user.id) || ids.includes(`email:${user.email.toLowerCase()}`);
+}
+
 // Ein Tagesdatensatz je Fahrer — die Kilometerstände gehören zum Fahrbericht,
 // die Arbeitszeiten zum Stundenzettel. Ein Eintrag pro (Fahrer, Datum).
 export interface DailyLog {

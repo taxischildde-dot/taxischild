@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
+import { syncDailyLogToCloud } from '../../lib/cloudSync';
 import { toDateKey, formatDurationMinutes, computeWorkMinutes } from '../../lib/format';
 import { Card } from '../ui/Card';
 import { Field, Input } from '../ui/Field';
@@ -21,13 +22,15 @@ export function DailyLogCard() {
   const [workEnd, setWorkEnd] = useState(existing?.workEnd ?? '');
   const [breakMinutes, setBreakMinutes] = useState(existing?.breakMinutes != null ? String(existing.breakMinutes) : '');
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   if (!user || !company || user.role !== 'driver') return null;
 
   const workedMinutes = computeWorkMinutes(workStart, workEnd, Number(breakMinutes) || 0);
 
-  const handleSave = () => {
-    db.dailyLogs.upsert({
+  const handleSave = async () => {
+    setSaveError('');
+    const savedLog = db.dailyLogs.upsert({
       companyId: company.id,
       driverId: user.id,
       date: todayKey,
@@ -39,6 +42,11 @@ export function DailyLogCard() {
         breakMinutes: breakMinutes ? Number(breakMinutes) : undefined,
       },
     });
+    const cloudResult = await syncDailyLogToCloud(savedLog);
+    if (!cloudResult.ok) {
+      setSaveError(`Lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -84,10 +92,11 @@ export function DailyLogCard() {
         </p>
       )}
 
-      <Button fullWidth className="mt-3" onClick={handleSave}>
+      <Button fullWidth className="mt-3" onClick={() => void handleSave()}>
         Tagesabschluss speichern
       </Button>
-      {saved && <p className="mt-2 text-center text-sm font-bold text-success">Gespeichert</p>}
+      {saved && <p className="mt-2 text-center text-sm font-bold text-success">Cloud-Synchronisierung abgeschlossen</p>}
+      {saveError && <p className="mt-2 rounded-xl bg-danger/10 px-3 py-2 text-center text-sm font-bold text-danger">{saveError}</p>}
     </Card>
   );
 }

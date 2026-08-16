@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import { getResponsibleDriverIds } from '../types';
+import { getResponsibleDriverIds, isVehicleAssignedToUser } from '../types';
 import { deleteVehicleFromCloud, hydrateCompanyCache, syncVehicleToCloud } from '../lib/cloudSync';
+import { supabase } from '../lib/supabase';
 import type { User, Vehicle, VehicleStatus } from '../types';
 import { TopBar } from '../components/layout/TopBar';
 import { VehicleCard } from '../components/fleet/VehicleCard';
@@ -12,6 +13,13 @@ import { Modal } from '../components/ui/Modal';
 import { Field, Input, Select } from '../components/ui/Field';
 import { FleetIcon, PlusIcon } from '../components/ui/Icons';
 import { VEHICLE_STATUS_LABEL } from '../lib/labels';
+
+interface PendingInvite {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
 
 const emptyForm = {
   plate: '',
@@ -28,21 +36,44 @@ export default function FleetPage() {
   const forceRefresh = () => setRefreshTick((n) => n + 1);
   const canManage = user?.role === 'admin';
   const companyId = company?.id;
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [syncError, setSyncError] = useState('');
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
 
   useEffect(() => {
     if (!companyId) return;
     void hydrateCompanyCache(companyId).then(() => setRefreshTick((n) => n + 1));
   }, [companyId]);
 
+  useEffect(() => {
+    if (!companyId || user?.role !== 'admin') {
+      setPendingInvites([]);
+      return;
+    }
+    void supabase
+      .from('driver_invites')
+      .select('id,name,email,created_at')
+      .eq('company_id', companyId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setPendingInvites((data ?? []).map((row) => ({ id: String(row.id), name: String(row.name), email: String(row.email), createdAt: String(row.created_at) }))));
+  }, [companyId, user?.role, refreshTick]);
+
   const vehicles = companyId
-    ? db.vehicles.byCompany(companyId).filter((vehicle) => user?.role === 'admin' || (user ? getResponsibleDriverIds(vehicle).includes(user.id) : false))
+    ? db.vehicles.byCompany(companyId).filter((vehicle) => user?.role === 'admin' || (user ? isVehicleAssignedToUser(vehicle, user) : false))
     : [];
   const drivers = user?.role === 'admin' && companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Vehicle | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [syncError, setSyncError] = useState('');
+  const pendingDrivers: User[] = pendingInvites.map((invite) => ({
+    id: `email:${invite.email.toLowerCase()}`,
+    companyId: companyId ?? '',
+    role: 'driver',
+    name: invite.name,
+    email: invite.email,
+    createdAt: invite.createdAt,
+  }));
+  const assignableDrivers = [...drivers, ...pendingDrivers];
 
   const openCreate = () => {
     setEditing(null);
@@ -140,13 +171,8 @@ export default function FleetPage() {
               <VehicleCard
                 key={v.id}
                 vehicle={v}
-                responsibleDrivers={
-                  company
-                    ? getResponsibleDriverIds(v)
-                        .map((driverId) => db.users.getForCompany(company.id, driverId))
-                        .filter((driver): driver is User => Boolean(driver))
-                    : []
-                }
+                                  responsibleDrivers={assignableDrivers.filter((driver) => isVehicleAssignedToUser(v, driver))}
+
                 canManage={canManage}
                 onEdit={openEdit}
                 onDelete={(vehicle) => void handleDelete(vehicle)}
@@ -190,11 +216,11 @@ export default function FleetPage() {
               Zuständige Fahrer
             </div>
             <div className="space-y-2 rounded-xl border border-cream-400 bg-white/70 p-3">
-              {drivers.length === 0 ? (
-                <p className="text-sm text-ink/50">Legen Sie zuerst Fahrer im Benutzerbereich an.</p>
+              {assignableDrivers.length === 0 ? (
+                <p className="text-sm text-ink/50">Legen Sie zuerst Fahrer im Benutzerbereich an oder senden Sie eine Einladung.</p>
               ) : (
-                drivers.map((driver) => {
-                  const selected = form.assignedDriverIds.includes(driver.id);
+                assignableDrivers.map((driver) => {
+                  const selected = isVehicleAssignedToUser({ assignedDriverIds: form.assignedDriverIds }, driver);
                   const limitReached = form.assignedDriverIds.length >= 2 && !selected;
                   return (
                     <label
@@ -211,14 +237,14 @@ export default function FleetPage() {
                           setForm((current) => ({
                             ...current,
                             assignedDriverIds: selected
-                              ? current.assignedDriverIds.filter((id) => id !== driver.id)
+                              ? current.assignedDriverIds.filter((id) => id !== driver.id && id !== `email:${driver.email.toLowerCase()}`)
                               : [...current.assignedDriverIds, driver.id],
                           }))
                         }
                         className="h-4 w-4 rounded border-cream-400 accent-amber-500"
                       />
                       <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{driver.name}</span>
-                      {selected && <span className="text-xs font-bold text-amber-700">Verantwortlich</span>}
+                      {selected && <span className="text-xs font-bold text-amber-700">{pendingDrivers.some((pending) => pending.id === driver.id) ? 'Einladung offen' : 'Verantwortlich'}</span>}
                     </label>
                   );
                 })

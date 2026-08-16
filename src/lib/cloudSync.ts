@@ -22,6 +22,37 @@ function mapUser(row: Row): User {
   };
 }
 
+export async function syncTripToCloud(trip: Trip): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { error } = await supabase
+    .from('trips')
+    .upsert(
+      {
+        id: trip.id,
+        company_id: trip.companyId,
+        customer_name: trip.customerName,
+        customer_phone: trip.customerPhone ?? null,
+        pickup_address: trip.pickupAddress,
+        destination_address: trip.destinationAddress,
+        destination_code: trip.destinationCode ?? null,
+        scheduled_at: trip.scheduledAt,
+        due_at: trip.dueAt ?? null,
+        price: trip.price ?? null,
+        currency: trip.currency,
+        status: trip.status === 'scheduled' ? 'planned' : trip.status,
+        payment_method: trip.paymentMethod === 'health_insurance' ? 'krankenkasse' : trip.paymentMethod === 'municipality_school' ? 'gemeinde' : trip.paymentMethod,
+        entry_source: trip.entrySource,
+        driver_id: trip.driverId ?? null,
+        created_by: trip.createdBy || null,
+        cancellation_reason: trip.cancellationReason ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 function mapTrip(row: Row): Trip {
   const status = row.status === 'planned' ? 'scheduled' : row.status === 'ongoing' ? 'ongoing' : row.status;
   return {
@@ -82,6 +113,30 @@ function mapVehicle(row: Row): Vehicle {
     assignedDriverIds: Array.isArray(row.assigned_driver_ids) ? (row.assigned_driver_ids as string[]) : [],
     createdAt: String(row.created_at),
   };
+}
+
+export async function syncDailyLogToCloud(log: DailyLog): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { error } = await supabase
+    .from('daily_logs')
+    .upsert(
+      {
+        id: log.id,
+        company_id: log.companyId,
+        driver_id: log.driverId,
+        date: log.date,
+        odometer_start: log.odometerStart ?? null,
+        odometer_end: log.odometerEnd ?? null,
+        work_start: log.workStart ?? null,
+        work_end: log.workEnd ?? null,
+        break_minutes: log.breakMinutes ?? 0,
+        notes: log.notes ?? null,
+        updated_at: log.updatedAt,
+      },
+      { onConflict: 'company_id,driver_id,date' },
+    );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 function mapDailyLog(row: Row): DailyLog {

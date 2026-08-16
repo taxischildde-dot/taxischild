@@ -18,17 +18,28 @@ export function AppLayout() {
   const [vehicleAlert, setVehicleAlert] = useState('');
   const companyId = company?.id;
   const userId = user?.id;
+  const userEmail = user?.email;
   const isDriver = user?.role === 'driver';
 
   const hideFab = location.pathname.startsWith('/trips/new') || location.pathname.includes('/edit');
 
   useEffect(() => {
-    if (!companyId || !userId || !isDriver || !isSupabaseConfigured) return;
+    if (!companyId || !userId || !userEmail || !isDriver || !isSupabaseConfigured) return;
 
     const storageKey = seenTripsKey(userId);
     const vehicleStorageKey = `taxischild_seen_driver_vehicles_${userId}`;
     let active = true;
     let firstSync = true;
+
+    const notifyDriver = (title: string, body: string, path: string) => {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const notice = new Notification(title, { body, icon: '/icons/icon-192.png' });
+      notice.onclick = () => {
+        window.focus();
+        notice.close();
+        navigate(path);
+      };
+    };
 
     const refreshDriverTrips = async () => {
       await hydrateCompanyCache(companyId);
@@ -39,33 +50,31 @@ export function AppLayout() {
 
       if (unseen.length > 0) {
         setTripAlert(unseen.length === 1 ? 'Eine neue Fahrt wurde Ihnen zugewiesen.' : `${unseen.length} neue Fahrten wurden Ihnen zugewiesen.`);
-        if ('Notification' in window && Notification.permission === 'granted') {
-          const firstTrip = unseen[0];
-          new Notification('TaxiSchild — Neue Fahrt', {
-            body: unseen.length === 1
-              ? `${firstTrip.customerName} um ${new Date(firstTrip.scheduledAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.`
-              : `${unseen.length} neue Fahrten stehen für Sie bereit.`,
-            icon: '/icons/icon-192.png',
-          });
-        }
+        const firstTrip = unseen[0];
+        notifyDriver(
+          'TaxiSchild — Neue Fahrt',
+          unseen.length === 1
+            ? `${firstTrip.customerName} um ${new Date(firstTrip.scheduledAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.`
+            : `${unseen.length} neue Fahrten stehen für Sie bereit.`,
+          '/trips',
+        );
       }
 
       window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
 
       const assignedVehicles = db.vehicles.byCompany(companyId);
       const previousVehicleState = JSON.parse(window.localStorage.getItem(vehicleStorageKey) ?? '{}') as Record<string, string>;
-      const currentVehicleState = getAssignedVehicleSignatures(assignedVehicles, userId);
+      const currentVehicleState = getAssignedVehicleSignatures(assignedVehicles, { id: userId, email: userEmail });
       const vehicleChanges = getChangedVehicleIds(previousVehicleState, currentVehicleState);
       if (!firstSync && vehicleChanges.length > 0) {
         const changedVehicle = assignedVehicles.find((vehicle) => vehicle.id === vehicleChanges[0]);
         if (changedVehicle) {
           setVehicleAlert(vehicleAssignmentMessage(changedVehicle));
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('TaxiSchild — Fahrzeug aktualisiert', {
-              body: `${changedVehicle.plate} · ${changedVehicle.model} ist jetzt für Sie hinterlegt.`,
-              icon: '/icons/icon-192.png',
-            });
-          }
+          notifyDriver(
+            'TaxiSchild — Fahrzeug aktualisiert',
+            `${changedVehicle.plate} · ${changedVehicle.model} ist jetzt für Sie hinterlegt.`,
+            '/fleet',
+          );
         }
       }
       window.localStorage.setItem(vehicleStorageKey, JSON.stringify(currentVehicleState));
@@ -85,7 +94,7 @@ export function AppLayout() {
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [companyId, userId, isDriver]);
+  }, [companyId, userId, userEmail, isDriver, navigate]);
 
   return (
     <div className="min-h-screen bg-cream-200">

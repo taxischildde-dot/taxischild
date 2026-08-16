@@ -7,7 +7,7 @@
 import type { Company, User, Trip, Vehicle, DailyLog } from '../types';
 import { readAll, writeAll, uid } from './storage';
 import { isSupabaseConfigured, supabase } from './supabase';
-import { syncVehicleToCloud } from './cloudSync';
+import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud } from './cloudSync';
 
 const cloudWarn = (operation: string, error: { message: string } | null) => {
   if (error) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, error.message);
@@ -24,32 +24,9 @@ const syncProfilePatch = (id: string, patch: Partial<User>) => {
 
 const syncTrip = (trip: Trip) => {
   if (!isSupabaseConfigured) return;
-  void supabase
-    .from('trips')
-    .upsert(
-      {
-        id: trip.id,
-        company_id: trip.companyId,
-        customer_name: trip.customerName,
-        customer_phone: trip.customerPhone ?? null,
-        pickup_address: trip.pickupAddress,
-        destination_address: trip.destinationAddress,
-        destination_code: trip.destinationCode ?? null,
-        scheduled_at: trip.scheduledAt,
-        due_at: trip.dueAt ?? null,
-        price: trip.price ?? null,
-        currency: trip.currency,
-        status: trip.status === 'scheduled' ? 'planned' : trip.status,
-        payment_method: trip.paymentMethod === 'health_insurance' ? 'krankenkasse' : trip.paymentMethod === 'municipality_school' ? 'gemeinde' : trip.paymentMethod,
-        entry_source: trip.entrySource,
-        driver_id: trip.driverId ?? null,
-        created_by: trip.createdBy || null,
-        cancellation_reason: trip.cancellationReason ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' },
-    )
-    .then(({ error }) => cloudWarn('trip sync', error));
+  void syncTripToCloud(trip).then((result) => {
+    if (!result.ok) console.warn(`[TaxiSchild] Supabase trip sync failed; local cache retained`, result.error);
+  });
 };
 
 const syncVehicle = (vehicle: Vehicle) => {
@@ -61,25 +38,9 @@ const syncVehicle = (vehicle: Vehicle) => {
 
 const syncDailyLog = (log: DailyLog) => {
   if (!isSupabaseConfigured) return;
-  void supabase
-    .from('daily_logs')
-    .upsert(
-      {
-        id: log.id,
-        company_id: log.companyId,
-        driver_id: log.driverId,
-        date: log.date,
-        odometer_start: log.odometerStart ?? null,
-        odometer_end: log.odometerEnd ?? null,
-        work_start: log.workStart ?? null,
-        work_end: log.workEnd ?? null,
-        break_minutes: log.breakMinutes ?? 0,
-        notes: log.notes ?? null,
-        updated_at: log.updatedAt,
-      },
-      { onConflict: 'company_id,driver_id,date' },
-    )
-    .then(({ error }) => cloudWarn('daily log sync', error));
+  void syncDailyLogToCloud(log).then((result) => {
+    if (!result.ok) console.warn(`[TaxiSchild] Supabase daily-log sync failed; local cache retained`, result.error);
+  });
 };
 
 const KEYS = {

@@ -16,7 +16,7 @@ import { useTripActions } from '../hooks/useTripActions';
 import { formatMoney, startOfDay, startOfMonth, tomorrowDateKey, toDateKey } from '../lib/format';
 import { maybeNotifyNewDriverTrips, maybeNotifyTomorrow } from '../lib/reminders';
 import { TripIcon, PlusIcon } from '../components/ui/Icons';
-import { getResponsibleDriverIds } from '../types';
+import { isVehicleAssignedToUser } from '../types';
 import type { Trip } from '../types';
 
 export default function DashboardPage() {
@@ -75,7 +75,7 @@ export default function DashboardPage() {
   const todayRevenue = todayCompleted.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
   const monthRevenue = monthCompleted.reduce((sum, trip) => sum + (trip.price ?? 0), 0);
   const activeVehicles = vehicles.filter((v) => v.status === 'active').length;
-  const driverVehicles = user?.role === 'driver' ? vehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(user.id)) : [];
+  const driverVehicles = user?.role === 'driver' ? vehicles.filter((vehicle) => isVehicleAssignedToUser(vehicle, user)) : [];
 
   const activeTrips = trips.filter((t) => t.status === 'scheduled' || t.status === 'ongoing').slice(0, 6);
 
@@ -104,7 +104,7 @@ export default function DashboardPage() {
               <StatCard label="Abgeschlossen heute" value={String(todayCompleted.length)} />
               <StatCard
                 label="Mein Fahrzeug"
-                value={String(vehicles.filter((vehicle) => getResponsibleDriverIds(vehicle).includes(user?.id ?? '')).length)}
+                value={String(user?.role === 'driver' ? vehicles.filter((vehicle) => isVehicleAssignedToUser(vehicle, user)).length : 0)}
               />
             </>
           )}
