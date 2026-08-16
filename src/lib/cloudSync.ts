@@ -1,5 +1,5 @@
 import type { Company, DailyLog, PaymentMethod, Trip, Vehicle, User } from '../types';
-import { supabase } from './supabase';
+import { isSupabaseConfigured, supabase } from './supabase';
 import { writeAll } from './storage';
 
 type Row = Record<string, unknown>;
@@ -44,6 +44,32 @@ function mapTrip(row: Row): Trip {
     createdBy: asString(row.created_by) ?? '',
     createdAt: String(row.created_at),
   };
+}
+
+export async function syncVehicleToCloud(vehicle: Vehicle): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { error } = await supabase
+    .from('vehicles')
+    .upsert(
+      {
+        id: vehicle.id,
+        company_id: vehicle.companyId,
+        plate_number: vehicle.plate,
+        model: vehicle.model,
+        status: vehicle.status === 'inactive' ? 'out_of_service' : vehicle.status,
+        assigned_driver_ids: vehicle.assignedDriverIds ?? (vehicle.assignedDriverId ? [vehicle.assignedDriverId] : []),
+      },
+      { onConflict: 'id' },
+    );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function deleteVehicleFromCloud(companyId: string, vehicleId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { error } = await supabase.from('vehicles').delete().eq('id', vehicleId).eq('company_id', companyId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 function mapVehicle(row: Row): Vehicle {

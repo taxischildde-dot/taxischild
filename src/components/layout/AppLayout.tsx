@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
+import { getAssignedVehicleSignatures, getChangedVehicleIds, vehicleAssignmentMessage } from '../../lib/vehicleAlerts';
 import { hydrateCompanyCache } from '../../lib/cloudSync';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { BottomNav } from './BottomNav';
@@ -14,6 +15,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { user, company } = useAuth();
   const [tripAlert, setTripAlert] = useState('');
+  const [vehicleAlert, setVehicleAlert] = useState('');
   const companyId = company?.id;
   const userId = user?.id;
   const isDriver = user?.role === 'driver';
@@ -24,6 +26,7 @@ export function AppLayout() {
     if (!companyId || !userId || !isDriver || !isSupabaseConfigured) return;
 
     const storageKey = seenTripsKey(userId);
+    const vehicleStorageKey = `taxischild_seen_driver_vehicles_${userId}`;
     let active = true;
     let firstSync = true;
 
@@ -48,6 +51,24 @@ export function AppLayout() {
       }
 
       window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
+
+      const assignedVehicles = db.vehicles.byCompany(companyId);
+      const previousVehicleState = JSON.parse(window.localStorage.getItem(vehicleStorageKey) ?? '{}') as Record<string, string>;
+      const currentVehicleState = getAssignedVehicleSignatures(assignedVehicles, userId);
+      const vehicleChanges = getChangedVehicleIds(previousVehicleState, currentVehicleState);
+      if (!firstSync && vehicleChanges.length > 0) {
+        const changedVehicle = assignedVehicles.find((vehicle) => vehicle.id === vehicleChanges[0]);
+        if (changedVehicle) {
+          setVehicleAlert(vehicleAssignmentMessage(changedVehicle));
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('TaxiSchild — Fahrzeug aktualisiert', {
+              body: `${changedVehicle.plate} · ${changedVehicle.model} ist jetzt für Sie hinterlegt.`,
+              icon: '/icons/icon-192.png',
+            });
+          }
+        }
+      }
+      window.localStorage.setItem(vehicleStorageKey, JSON.stringify(currentVehicleState));
       firstSync = false;
     };
 
@@ -56,6 +77,7 @@ export function AppLayout() {
     const channel = supabase
       .channel(`driver-alerts-${companyId}-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => void refreshDriverTrips())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: `company_id=eq.${companyId}` }, () => void refreshDriverTrips())
       .subscribe();
 
     return () => {
@@ -67,22 +89,26 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-cream-200">
-      {tripAlert && user?.role === 'driver' && (
-        <div className="fixed inset-x-3 top-3 z-50 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-100 px-4 py-3 shadow-xl">
-          <div className="flex min-w-0 items-center gap-2">
-            <TripIcon width={20} height={20} className="shrink-0 text-amber-800" />
-            <p className="text-sm font-bold text-amber-900">{tripAlert}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setTripAlert('');
-              navigate('/trips');
-            }}
-            className="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-xs font-extrabold text-asphalt-950"
-          >
-            Ansehen
-          </button>
+      {user?.role === 'driver' && (tripAlert || vehicleAlert) && (
+        <div className="fixed inset-x-3 top-3 z-50 mx-auto flex max-w-xl flex-col gap-2">
+          {tripAlert && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-100 px-4 py-3 shadow-xl">
+              <div className="flex min-w-0 items-center gap-2">
+                <TripIcon width={20} height={20} className="shrink-0 text-amber-800" />
+                <p className="text-sm font-bold text-amber-900">{tripAlert}</p>
+              </div>
+              <button type="button" onClick={() => { setTripAlert(''); navigate('/trips'); }} className="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-xs font-extrabold text-asphalt-950">Fahrten</button>
+            </div>
+          )}
+          {vehicleAlert && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-100 px-4 py-3 shadow-xl">
+              <div className="flex min-w-0 items-center gap-2">
+                <TripIcon width={20} height={20} className="shrink-0 text-sky-800" />
+                <p className="text-sm font-bold text-sky-900">{vehicleAlert}</p>
+              </div>
+              <button type="button" onClick={() => { setVehicleAlert(''); navigate('/fleet'); }} className="shrink-0 rounded-xl bg-sky-300 px-3 py-2 text-xs font-extrabold text-sky-950">Fahrzeug</button>
+            </div>
+          )}
         </div>
       )}
 

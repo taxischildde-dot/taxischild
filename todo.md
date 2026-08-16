@@ -65,3 +65,5 @@
 - [x] Restrict driver portal views to assigned vehicles, today's trips, and trip notification alerts.
 - [x] Add unit coverage for new driver-trip notification deduplication and daily-only driver scoping.
 - [ ] Verify the Supabase Realtime publication includes trips for instant in-app updates; keep the 30-second polling fallback for deployments where Realtime is not enabled.
+- [x] Fix vehicle save persistence and ensure assigned drivers appear instantly on the dashboard and fleet views.
+- [x] Add real-time notifications for drivers when a vehicle is assigned or updated.

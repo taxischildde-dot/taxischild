@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { getResponsibleDriverIds } from '../types';
-import { hydrateCompanyCache } from '../lib/cloudSync';
+import { deleteVehicleFromCloud, hydrateCompanyCache, syncVehicleToCloud } from '../lib/cloudSync';
 import type { User, Vehicle, VehicleStatus } from '../types';
 import { TopBar } from '../components/layout/TopBar';
 import { VehicleCard } from '../components/fleet/VehicleCard';
@@ -42,10 +42,12 @@ export default function FleetPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [syncError, setSyncError] = useState('');
 
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setSyncError('');
     setModalOpen(true);
   };
 
@@ -59,17 +61,24 @@ export default function FleetPage() {
       assignedDriverIds: getResponsibleDriverIds(v),
       notes: v.notes ?? '',
     });
+    setSyncError('');
     setModalOpen(true);
   };
 
-  const handleDelete = (v: Vehicle) => {
+  const handleDelete = async (v: Vehicle) => {
     if (!company || !canManage || v.companyId !== company.id) return;
     if (!window.confirm(`Fahrzeug ${v.plate} wirklich löschen?`)) return;
     db.vehicles.removeForCompany(company.id, v.id);
+    const result = await deleteVehicleFromCloud(company.id, v.id);
+    if (!result.ok) {
+      setSyncError(`Das Fahrzeug wurde lokal entfernt, aber nicht aus der Cloud: ${result.error}`);
+      return;
+    }
+    await hydrateCompanyCache(company.id);
     forceRefresh();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company || !canManage) return;
     const payload = {
@@ -83,12 +92,26 @@ export default function FleetPage() {
       assignedDriverId: undefined,
       notes: form.notes.trim() || undefined,
     };
-    if (editing) {
-      db.vehicles.updateForCompany(company.id, editing.id, payload);
-    } else {
-      db.vehicles.create(payload);
+    const saved = editing
+      ? db.vehicles.updateForCompany(company.id, editing.id, payload)
+      : db.vehicles.create(payload);
+    if (!saved) {
+      setSyncError('Das Fahrzeug konnte lokal nicht gespeichert werden.');
+      return;
     }
     setModalOpen(false);
+    forceRefresh();
+    const result = await syncVehicleToCloud(saved);
+    if (!result.ok) {
+      setSyncError(`Das Fahrzeug wurde lokal gespeichert, aber nicht in der Cloud: ${result.error}`);
+      return;
+    }
+    const hydration = await hydrateCompanyCache(company.id);
+    if (!hydration.ok) {
+      setSyncError(`Das Fahrzeug wurde gespeichert, aber die Aktualisierung konnte nicht geladen werden: ${hydration.error}`);
+      return;
+    }
+    setSyncError('');
     forceRefresh();
   };
 
@@ -97,6 +120,8 @@ export default function FleetPage() {
       <TopBar title="Fuhrpark" subtitle={`${vehicles.length} Fahrzeuge`} />
 
       <div className="space-y-4 px-4 pt-4">
+        {syncError && <p className="rounded-xl border border-danger/25 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{syncError}</p>}
+
         {canManage && (
           <Button fullWidth icon={<PlusIcon width={18} height={18} />} onClick={openCreate}>
             Fahrzeug hinzufügen
@@ -124,7 +149,7 @@ export default function FleetPage() {
                 }
                 canManage={canManage}
                 onEdit={openEdit}
-                onDelete={handleDelete}
+                onDelete={(vehicle) => void handleDelete(vehicle)}
               />
             ))}
           </div>

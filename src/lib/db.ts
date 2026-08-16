@@ -7,6 +7,7 @@
 import type { Company, User, Trip, Vehicle, DailyLog } from '../types';
 import { readAll, writeAll, uid } from './storage';
 import { isSupabaseConfigured, supabase } from './supabase';
+import { syncVehicleToCloud } from './cloudSync';
 
 const cloudWarn = (operation: string, error: { message: string } | null) => {
   if (error) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, error.message);
@@ -53,20 +54,9 @@ const syncTrip = (trip: Trip) => {
 
 const syncVehicle = (vehicle: Vehicle) => {
   if (!isSupabaseConfigured) return;
-  void supabase
-    .from('vehicles')
-    .upsert(
-      {
-        id: vehicle.id,
-        company_id: vehicle.companyId,
-        plate_number: vehicle.plate,
-        model: vehicle.model,
-        status: vehicle.status === 'inactive' ? 'out_of_service' : vehicle.status,
-        assigned_driver_ids: vehicle.assignedDriverIds ?? [],
-      },
-      { onConflict: 'id' },
-    )
-    .then(({ error }) => cloudWarn('vehicle sync', error));
+  void syncVehicleToCloud(vehicle).then((result) => {
+    if (!result.ok) console.warn(`[TaxiSchild] Supabase vehicle sync failed; local cache retained`, result.error);
+  });
 };
 
 const syncDailyLog = (log: DailyLog) => {
