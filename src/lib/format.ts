@@ -15,8 +15,14 @@ export function formatMoney(value: number, currency: string = DEFAULT_CURRENCY):
   }
 }
 
+function safeDate(value: string): Date | null {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function formatDateTime(iso: string): string {
-  const d = new Date(iso);
+  const d = safeDate(iso);
+  if (!d) return '—';
   return new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
@@ -27,7 +33,8 @@ export function formatDateTime(iso: string): string {
 }
 
 export function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const d = safeDate(iso);
+  if (!d) return '—';
   return new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
@@ -36,7 +43,8 @@ export function formatDate(iso: string): string {
 }
 
 export function formatTime(iso: string): string {
-  const d = new Date(iso);
+  const d = safeDate(iso);
+  if (!d) return '—';
   return new Intl.DateTimeFormat('de-DE', {
     hour: '2-digit',
     minute: '2-digit',

@@ -59,4 +59,12 @@ describe('maybeNotifyNewDriverTrips', () => {
 
     expect(notifications).toHaveLength(0);
   });
+
+  it('resets malformed seen-trip cache instead of throwing', () => {
+    window.localStorage.setItem(`taxischild_seen_driver_trips_${driverId}`, '{broken');
+
+    expect(() => maybeNotifyNewDriverTrips([trip('first')], driverId)).not.toThrow();
+    expect(notifications).toHaveLength(0);
+    expect(window.localStorage.getItem(`taxischild_seen_driver_trips_${driverId}`)).toContain('first');
+  });
 });

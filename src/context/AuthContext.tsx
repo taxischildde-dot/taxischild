@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Company, User, Weekday } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { hydrateCompanyCache } from '../lib/cloudSync';
+import { clearAppCache } from '../lib/storage';
 import { getLoginErrorMessage, getResendErrorMessage } from '../lib/authMessages';
 import { getPublicAppUrl } from '../lib/appUrl';
 
@@ -85,7 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const typedProfile = profile as SupabaseProfile;
     const { data: company } = await supabase.from('companies').select('*').eq('id', typedProfile.company_id).single();
-    await hydrateCompanyCache(typedProfile.company_id);
+    const hydration = await hydrateCompanyCache(typedProfile.company_id, { userRole: typedProfile.role, userId: typedProfile.id });
+    if (!hydration.ok) {
+      console.warn('[TaxiSchild] Cloud hydration failed during auth; clearing stale local cache', hydration.error);
+      clearAppCache();
+    }
     setState({ user: mapProfile(typedProfile), company: company ? mapCompany(company as SupabaseCompany) : null, loading: false });
   };
 

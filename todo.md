@@ -78,3 +78,4 @@
 - [ ] Move long-range employer reports to paginated or server-side aggregate queries before large multi-year archives are onboarded.
 - [x] Run supabase_audit_log.sql in the production Supabase project and verify the audit log table and RLS policies were created successfully.
 - [x] Fix trip status change actions (Start/Complete) and map links in TripCard so they never trigger unhandled errors or unresponsive error boundaries.
+- [x] Add a cache-clearing recovery button to AppErrorBoundary that wipes corrupted local storage keys without logging out Supabase, preventing reload loops.
