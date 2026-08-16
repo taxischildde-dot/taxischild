@@ -85,7 +85,11 @@ export function AppLayout() {
         );
       }
 
-      window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify([...new Set([...seen, ...trips.map((trip) => trip.id)])].slice(-200)));
+      } catch (error) {
+        console.warn('[TaxiSchild] Driver trip seen-cache write skipped', error);
+      }
 
       const assignedVehicles = db.vehicles.byCompany(companyId);
       const previousVehicleState = readJson<Record<string, string>>(vehicleStorageKey, {});
@@ -102,7 +106,11 @@ export function AppLayout() {
           );
         }
       }
-      window.localStorage.setItem(vehicleStorageKey, JSON.stringify(currentVehicleState));
+      try {
+        window.localStorage.setItem(vehicleStorageKey, JSON.stringify(currentVehicleState));
+      } catch (error) {
+        console.warn('[TaxiSchild] Driver vehicle seen-cache write skipped', error);
+      }
       firstSync = false;
     };
 

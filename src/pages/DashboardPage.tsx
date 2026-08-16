@@ -41,7 +41,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!companyId || !userId || !isSupabaseConfigured || userRole !== 'driver') return;
     const refreshTrips = () => {
-      void hydrateCompanyCache(companyId, { userRole: 'driver', userId }).finally(() => forceRefresh());
+      void hydrateCompanyCache(companyId, { userRole: 'driver', userId })
+        .catch((error) => console.warn('[TaxiSchild] Dashboard trip refresh skipped', error))
+        .finally(() => forceRefresh());
     };
     const channel = supabase
       .channel(`driver-trips-${companyId}-${userId}`)

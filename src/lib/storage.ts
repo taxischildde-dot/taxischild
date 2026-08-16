@@ -13,7 +13,11 @@ export function readAll<T>(key: string): T[] {
 }
 
 export function writeAll<T>(key: string, items: T[]): void {
-  localStorage.setItem(PREFIX + key, JSON.stringify(items));
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(items));
+  } catch (error) {
+    console.warn(`[TaxiSchild] Local cache write skipped for ${key}`, error);
+  }
 }
 
 export function readOne<T>(key: string): T | null {
