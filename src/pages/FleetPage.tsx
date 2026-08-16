@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { getResponsibleDriverIds } from '../types';
+import { hydrateCompanyCache } from '../lib/cloudSync';
 import type { User, Vehicle, VehicleStatus } from '../types';
 import { TopBar } from '../components/layout/TopBar';
 import { VehicleCard } from '../components/fleet/VehicleCard';
@@ -26,9 +27,15 @@ export default function FleetPage() {
   const [refreshTick, setRefreshTick] = useState(0);
   const forceRefresh = () => setRefreshTick((n) => n + 1);
   const canManage = user?.role === 'admin';
+  const companyId = company?.id;
 
-  const vehicles = company ? db.vehicles.byCompany(company.id) : [];
-  const drivers = company ? db.users.byCompany(company.id).filter((u) => u.role === 'driver') : [];
+  useEffect(() => {
+    if (!companyId) return;
+    void hydrateCompanyCache(companyId).then(() => setRefreshTick((n) => n + 1));
+  }, [companyId]);
+
+  const vehicles = companyId ? db.vehicles.byCompany(companyId) : [];
+  const drivers = companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);

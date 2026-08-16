@@ -55,3 +55,7 @@
 - [x] Fix the Supabase confirmation link when it redirects to an inaccessible or unapproved URL, including a safe in-app callback route and documented Vercel redirect settings.
 - [x] Add a resend-confirmation button and helper method to the login and auth context so unconfirmed users can easily request a fresh email link.
 - [x] Add unit coverage for unconfirmed-email detection, resend rate-limit messaging, and generic authentication errors.
+- [x] Make driver invitation and activation public and password-based so drivers do not trigger Vercel deployment passwords.
+- [x] Ensure invited drivers are correctly added as profiles in the company and listed in the driver management view.
+- [x] Enable assigning and replacing responsible drivers during vehicle creation and editing.
+- [ ] Ensure Vercel Production deployment protection is disabled or configured so customer invite links are publicly reachable without a Vercel access code.

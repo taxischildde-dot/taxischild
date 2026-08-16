@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Field, Input } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
+import { getPublicAppUrl } from '../lib/appUrl';
 
 interface InviteRecord {
   driver_name: string;
@@ -16,6 +17,7 @@ export default function InvitePage() {
   const [invite, setInvite] = useState<InviteRecord | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -41,18 +43,25 @@ export default function InvitePage() {
     }
     setSaving(true);
     setError('');
+    setNotice('');
     const { data, error: signupError } = await supabase.auth.signUp({
       email: invite.driver_email,
       password,
-      options: { data: { invite_token: token, name: invite.driver_name } },
+      options: {
+        data: { invite_token: token, name: invite.driver_name },
+        emailRedirectTo: `${getPublicAppUrl()}/auth/callback`,
+      },
     });
     setSaving(false);
     if (signupError) {
       setError(signupError.message);
       return;
     }
-    if (data.session) navigate('/');
-    else navigate('/login?registered=1');
+    if (data.session) {
+      navigate('/');
+    } else {
+      setNotice('Ihr Passwort wurde gespeichert. Bitte bestätigen Sie jetzt Ihre E-Mail-Adresse und melden Sie sich danach an. Prüfen Sie auch den Spam-Ordner.');
+    }
   };
 
   return (
@@ -67,16 +76,25 @@ export default function InvitePage() {
         {loading ? (
           <div className="rounded-3xl bg-cream-200 p-6 text-center text-sm text-ink/60">Einladung wird geprüft…</div>
         ) : invite ? (
-          <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-cream-200 p-6 shadow-2xl">
-            <p className="rounded-xl bg-ink/5 px-3 py-2 text-sm text-ink/70">
-              Willkommen, <strong>{invite.driver_name}</strong>. Ihr Zugang lautet {invite.driver_email}.
-            </p>
-            <Field label="Passwort" hint="mindestens 8 Zeichen" required>
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required />
-            </Field>
-            {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
-            <Button type="submit" fullWidth size="lg" disabled={saving}>{saving ? 'Konto wird erstellt…' : 'Fahrerzugang aktivieren'}</Button>
-          </form>
+          notice ? (
+            <div className="rounded-3xl bg-cream-200 p-6 text-center shadow-2xl">
+              <p className="rounded-xl bg-success/10 px-3 py-3 text-sm font-semibold leading-relaxed text-success">{notice}</p>
+              <Link to="/login" className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold text-asphalt-950">
+                Zum Login
+              </Link>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-cream-200 p-6 shadow-2xl">
+              <p className="rounded-xl bg-ink/5 px-3 py-2 text-sm text-ink/70">
+                Willkommen, <strong>{invite.driver_name}</strong>. Ihr Zugang lautet {invite.driver_email}.
+              </p>
+              <Field label="Neues Passwort" hint="mindestens 8 Zeichen" required>
+                <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required />
+              </Field>
+              {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
+              <Button type="submit" fullWidth size="lg" disabled={saving}>{saving ? 'Konto wird erstellt…' : 'Passwort festlegen und starten'}</Button>
+            </form>
+          )
         ) : (
           <div className="rounded-3xl bg-cream-200 p-6 text-center text-sm font-semibold text-danger">{error}</div>
         )}

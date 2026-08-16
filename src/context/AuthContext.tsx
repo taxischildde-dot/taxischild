@@ -3,6 +3,7 @@ import type { Company, User, Weekday } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { hydrateCompanyCache } from '../lib/cloudSync';
 import { getLoginErrorMessage, getResendErrorMessage } from '../lib/authMessages';
+import { getPublicAppUrl } from '../lib/appUrl';
 
 interface AuthState {
   user: User | null;
@@ -128,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: normalizedEmail,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${getPublicAppUrl()}/auth/callback` },
     });
     if (error) return { ok: false, error: getResendErrorMessage(error) };
     return { ok: true, message: 'Eine neue Bestätigungs-E-Mail wurde versendet. Prüfen Sie bitte auch den Spam-Ordner.' };
@@ -141,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         data: { company_name: companyName.trim(), name: adminName.trim() },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${getPublicAppUrl()}/auth/callback`,
       },
     });
     if (error) return { ok: false, error: error.message };
@@ -163,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status: 'pending',
     });
     if (error) return { ok: false, error: 'Die Fahrereinladung konnte nicht gespeichert werden' };
-    const inviteUrl = `${window.location.origin}/invite/${token}`;
+    const inviteUrl = `${getPublicAppUrl()}/invite/${token}`;
     return { ok: true, inviteUrl, message: `Einladung erstellt für ${name.trim()}` };
   };
 

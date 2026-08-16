@@ -1,7 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
+import { hydrateCompanyCache } from '../lib/cloudSync';
+import { supabase } from '../lib/supabase';
+import { getPublicAppUrl } from '../lib/appUrl';
 import type { User, Weekday } from '../types';
 import { ALL_WEEKDAYS } from '../types';
 import { TopBar } from '../components/layout/TopBar';
@@ -12,6 +15,14 @@ import { Field, Input } from '../components/ui/Field';
 import { weekdayLabel } from '../lib/format';
 import { notificationPermission, requestNotificationPermission } from '../lib/reminders';
 import { BackupIcon, BuildingIcon, EditIcon, LogoutIcon, PlusIcon, SupportIcon, UsersIcon } from '../components/ui/Icons';
+
+type PendingDriverInvite = {
+  id: string;
+  name: string;
+  email: string;
+  token: string;
+  created_at: string;
+};
 
 const emptyDriverForm = {
   name: '',
@@ -37,14 +48,37 @@ export default function SettingsPage() {
   const [driverForm, setDriverForm] = useState(emptyDriverForm);
   const [driverError, setDriverError] = useState('');
   const [lastInviteUrl, setLastInviteUrl] = useState('');
+  const [pendingInvites, setPendingInvites] = useState<PendingDriverInvite[]>([]);
 
-  const [, forceTick] = useState(0);
+  const [refreshTick, forceTick] = useState(0);
   const [permission, setPermission] = useState(notificationPermission());
 
-  const drivers = useMemo(
-    () => (company ? db.users.byCompany(company.id).filter((u) => u.role === 'driver') : []),
-    [company],
-  );
+  const companyId = company?.id;
+  const drivers = companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
+
+  const refreshPendingInvites = useCallback(async () => {
+    if (!companyId || user?.role !== 'admin') {
+      setPendingInvites([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('driver_invites')
+      .select('id,name,email,token,created_at')
+      .eq('company_id', companyId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (!error) setPendingInvites((data ?? []) as PendingDriverInvite[]);
+  }, [companyId, user?.role]);
+
+  const refreshDriverData = useCallback(async () => {
+    if (companyId) await hydrateCompanyCache(companyId);
+    await refreshPendingInvites();
+    forceTick((current) => current + 1);
+  }, [companyId, refreshPendingInvites]);
+
+  useEffect(() => {
+    void refreshDriverData();
+  }, [refreshDriverData]);
 
   const handleLogout = async () => {
     await logout();
@@ -92,15 +126,20 @@ export default function SettingsPage() {
     e.preventDefault();
 
     if (editingDriverId) {
-      if (driverForm.password && driverForm.password.length < 4) {
-        setDriverError('Das Passwort muss mindestens 4 Zeichen lang sein');
-        return;
-      }
       if (!company || user?.role !== 'admin') {
         setDriverError('Nur die Geschäftsführung kann Fahrerdaten ändern');
         return;
       }
-      setDriverError('Die Bearbeitung bestehender Fahrer wird nach der Einladungssynchronisierung verfügbar.');
+      db.users.updateForCompany(company.id, editingDriverId, {
+        name: driverForm.name.trim(),
+        phone: driverForm.phone.trim() || undefined,
+        employeeNumber: driverForm.employeeNumber.trim() || undefined,
+        licenseType: driverForm.licenseType.trim() || undefined,
+        workDays: driverForm.workDays.length > 0 ? driverForm.workDays : undefined,
+      });
+      setDriverModalOpen(false);
+      setDriverError('');
+      await refreshDriverData();
       return;
     }
 
@@ -113,6 +152,7 @@ export default function SettingsPage() {
     setDriverForm(emptyDriverForm);
     setDriverError('');
     setLastInviteUrl(result.inviteUrl ?? '');
+    await refreshDriverData();
   };
 
   const handleBackup = () => {
@@ -220,6 +260,32 @@ export default function SettingsPage() {
                   <Input value={lastInviteUrl} readOnly className="text-xs" aria-label="Fahrer-Einladungslink" />
                   <Button type="button" variant="secondary" onClick={() => void navigator.clipboard?.writeText(lastInviteUrl)}>Kopieren</Button>
                 </div>
+              </div>
+            )}
+            {pendingInvites.length > 0 && (
+              <div className="mb-3 rounded-xl border border-amber-300/70 bg-amber-50/70 p-3">
+                <p className="text-xs font-extrabold text-amber-900">Offene Einladungen ({pendingInvites.length})</p>
+                <div className="mt-2 space-y-2">
+                  {pendingInvites.map((invite) => (
+                    <div key={invite.id} className="rounded-lg bg-white/70 px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-ink">{invite.name}</p>
+                          <p className="truncate text-[0.7rem] text-ink/50">{invite.email}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void navigator.clipboard?.writeText(`${getPublicAppUrl()}/invite/${invite.token}`)}
+                        >
+                          Link kopieren
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[0.7rem] leading-relaxed text-ink/55">Nach der Aktivierung erscheint der Fahrer automatisch in dieser Liste und im Fuhrpark.</p>
               </div>
             )}
             {drivers.length === 0 ? (
