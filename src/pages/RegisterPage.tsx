@@ -14,9 +14,12 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setNotice('');
     if (password.length < 4) {
       setError('Das Passwort muss mindestens 4 Zeichen lang sein');
       return;
@@ -24,6 +27,10 @@ export default function RegisterPage() {
     const result = await registerCompany({ companyName, adminName, email, password, phone });
     if (!result.ok) {
       setError(result.error);
+      return;
+    }
+    if (result.message) {
+      setNotice(result.message);
       return;
     }
     navigate('/');
@@ -56,6 +63,7 @@ export default function RegisterPage() {
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </Field>
           {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
+          {notice && <p className="rounded-xl bg-emerald-900/10 px-3 py-2 text-sm font-semibold text-emerald-800">{notice}</p>}
           <Button type="submit" fullWidth size="lg">
             Konto erstellen &amp; starten
           </Button>

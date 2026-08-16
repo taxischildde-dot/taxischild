@@ -14,6 +14,7 @@ import ReportsPage from './pages/ReportsPage';
 import SupportPage from './pages/SupportPage';
 import SettingsPage from './pages/SettingsPage';
 import InvitePage from './pages/InvitePage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/invite/:token" element={<InvitePage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           <Route
             element={

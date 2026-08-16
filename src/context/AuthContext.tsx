@@ -113,7 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthContextValue['login'] = async (email, password) => {
     if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error || !data.user) return { ok: false, error: 'E-Mail-Adresse oder Passwort ist falsch' };
+    if (error || !data.user) {
+      const errorCode = error?.code ?? '';
+      const errorText = error?.message?.toLowerCase() ?? '';
+      if (errorCode === 'email_not_confirmed' || errorText.includes('email not confirmed')) {
+        return { ok: false, error: 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie auch den Spam-Ordner.' };
+      }
+      return { ok: false, error: 'E-Mail-Adresse oder Passwort ist falsch' };
+    }
     await loadAuthenticatedUser(data.user.id);
     return { ok: true };
   };
@@ -123,7 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { company_name: companyName.trim(), name: adminName.trim() } },
+      options: {
+        data: { company_name: companyName.trim(), name: adminName.trim() },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
     if (error) return { ok: false, error: error.message };
     if (data.session?.user) await loadAuthenticatedUser(data.session.user.id);

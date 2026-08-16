@@ -49,3 +49,7 @@
 - [ ] Replace local password storage and demo login with secure account activation, sign-in, password recovery, and driver invitation flows.
 - [ ] Remove demo credentials, seeded-company controls, and user-visible demo language from the production experience.
 - [ ] Implement production data migration, audit logging, backups, and cross-device synchronization before onboarding real companies.
+- [x] Fix company registration so email confirmation is clearly required and the user is not redirected into a misleading login error.
+- [x] Add the production callback URL and friendly unconfirmed-email handling for Supabase Auth.
+- [ ] Test registration, confirmation, login, and deployment after publishing the fix.
+- [x] Fix the Supabase confirmation link when it redirects to an inaccessible or unapproved URL, including a safe in-app callback route and documented Vercel redirect settings.
