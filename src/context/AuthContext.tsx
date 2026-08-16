@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Company, User, Weekday } from '../types';
-import { db } from '../lib/db';
-import { readOne, writeOne, removeKey } from '../lib/storage';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { hydrateCompanyCache } from '../lib/cloudSync';
 
 interface AuthState {
   user: User | null;
@@ -9,16 +9,18 @@ interface AuthState {
   loading: boolean;
 }
 
+type AuthResult = { ok: true; message?: string; inviteUrl?: string } | { ok: false; error: string };
+
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => { ok: true } | { ok: false; error: string };
+  login: (email: string, password: string) => Promise<AuthResult>;
   registerCompany: (params: {
     companyName: string;
     adminName: string;
     email: string;
     password: string;
     phone?: string;
-  }) => { ok: true } | { ok: false; error: string };
-  logout: () => void;
+  }) => Promise<AuthResult>;
+  logout: () => Promise<void>;
   addDriver: (params: {
     name: string;
     email: string;
@@ -27,120 +29,147 @@ interface AuthContextValue extends AuthState {
     employeeNumber?: string;
     licenseType?: string;
     workDays?: Weekday[];
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<AuthResult>;
   updateCompanyName: (name: string) => void;
   updateProfile: (patch: Partial<Pick<User, 'name' | 'phone'>>) => void;
 }
 
-const SESSION_KEY = 'session';
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+type SupabaseProfile = {
+  id: string;
+  company_id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'driver';
+  driver_number?: string | null;
+  license_type?: string | null;
+  working_days?: Weekday[] | null;
+  availability_status?: User['availabilityStatus'] | null;
+  created_at: string;
+};
+
+type SupabaseCompany = { id: string; name: string; created_at: string };
+
+function mapCompany(row: SupabaseCompany): Company {
+  return { id: row.id, name: row.name, createdAt: row.created_at };
+}
+
+function mapProfile(row: SupabaseProfile): User {
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    role: row.role,
+    name: row.name,
+    email: row.email,
+    employeeNumber: row.driver_number ?? undefined,
+    licenseType: row.license_type ?? undefined,
+    workDays: row.working_days ?? undefined,
+    availabilityStatus: row.availability_status ?? 'available',
+    createdAt: row.created_at,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, company: null, loading: true });
 
-  useEffect(() => {
-    const session = readOne<{ userId: string }>(SESSION_KEY);
-    if (session) {
-      const user = db.users.get(session.userId);
-      if (user) {
-        const company = db.companies.get(user.companyId) ?? null;
-        setState({ user, company, loading: false });
-        return;
-      }
+  const loadAuthenticatedUser = async (userId: string) => {
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (profileError || !profile) {
+      setState({ user: null, company: null, loading: false });
+      return;
     }
-    setState({ user: null, company: null, loading: false });
+    const typedProfile = profile as SupabaseProfile;
+    const { data: company } = await supabase.from('companies').select('*').eq('id', typedProfile.company_id).single();
+    await hydrateCompanyCache(typedProfile.company_id);
+    setState({ user: mapProfile(typedProfile), company: company ? mapCompany(company as SupabaseCompany) : null, loading: false });
+  };
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setState({ user: null, company: null, loading: false });
+      return;
+    }
+
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      if (data.session?.user) void loadAuthenticatedUser(data.session.user.id);
+      else setState({ user: null, company: null, loading: false });
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      if (session?.user) void loadAuthenticatedUser(session.user.id);
+      else setState({ user: null, company: null, loading: false });
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  const login: AuthContextValue['login'] = (email, password) => {
-    const user = db.users.byEmail(email);
-    if (!user || user.password !== password) {
-      return { ok: false, error: 'E-Mail-Adresse oder Passwort ist falsch' };
-    }
-    const company = db.companies.get(user.companyId) ?? null;
-    writeOne(SESSION_KEY, { userId: user.id });
-    setState({ user, company, loading: false });
+  const login: AuthContextValue['login'] = async (email, password) => {
+    if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error || !data.user) return { ok: false, error: 'E-Mail-Adresse oder Passwort ist falsch' };
+    await loadAuthenticatedUser(data.user.id);
     return { ok: true };
   };
 
-  const registerCompany: AuthContextValue['registerCompany'] = ({
-    companyName,
-    adminName,
-    email,
-    password,
-    phone,
-  }) => {
-    if (db.users.byEmail(email)) {
-      return { ok: false, error: 'Diese E-Mail-Adresse wird bereits verwendet' };
-    }
-    const company = db.companies.create(companyName.trim());
-    const admin = db.users.create({
-      companyId: company.id,
-      role: 'admin',
-      name: adminName.trim(),
+  const registerCompany: AuthContextValue['registerCompany'] = async ({ companyName, adminName, email, password }) => {
+    if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      phone,
+      options: { data: { company_name: companyName.trim(), name: adminName.trim() } },
     });
-    writeOne(SESSION_KEY, { userId: admin.id });
-    setState({ user: admin, company, loading: false });
-    return { ok: true };
+    if (error) return { ok: false, error: error.message };
+    if (data.session?.user) await loadAuthenticatedUser(data.session.user.id);
+    return {
+      ok: true,
+      message: data.session ? undefined : 'Bitte bestätigen Sie Ihre E-Mail-Adresse, bevor Sie sich anmelden.',
+    };
   };
 
-  const addDriver: AuthContextValue['addDriver'] = ({
-    name,
-    email,
-    password,
-    phone,
-    employeeNumber,
-    licenseType,
-    workDays,
-  }) => {
-    if (!state.company) return { ok: false, error: 'Kein aktives Unternehmen gefunden' };
-    if (db.users.byEmail(email)) {
-      return { ok: false, error: 'Diese E-Mail-Adresse wird bereits verwendet' };
-    }
-    db.users.create({
-      companyId: state.company.id,
-      role: 'driver',
+  const addDriver: AuthContextValue['addDriver'] = async ({ name, email, employeeNumber, licenseType, workDays }) => {
+    if (!state.company || !state.user || state.user.role !== 'admin') return { ok: false, error: 'Nur die Geschäftsführung kann Fahrer einladen' };
+    const token = crypto.randomUUID();
+    const { error } = await supabase.from('driver_invites').insert({
+      company_id: state.company.id,
       name: name.trim(),
-      email: email.trim(),
-      password,
-      phone,
-      employeeNumber: employeeNumber?.trim() || undefined,
-      licenseType: licenseType?.trim() || undefined,
-      workDays: workDays && workDays.length > 0 ? workDays : undefined,
+      email: email.trim().toLowerCase(),
+      token,
+      status: 'pending',
     });
-    return { ok: true };
+    if (error) return { ok: false, error: 'Die Fahrereinladung konnte nicht gespeichert werden' };
+    const inviteUrl = `${window.location.origin}/invite/${token}`;
+    return { ok: true, inviteUrl, message: `Einladung erstellt für ${name.trim()}` };
   };
 
-  const logout = () => {
-    removeKey(SESSION_KEY);
+  const logout = async () => {
+    await supabase.auth.signOut();
     setState({ user: null, company: null, loading: false });
   };
 
   const updateCompanyName = (name: string) => {
-    if (!state.company) return;
-    const updated = db.companies.update(state.company.id, { name: name.trim() });
-    if (updated) setState((s) => ({ ...s, company: updated }));
+    if (!state.company || state.user?.role !== 'admin') return;
+    void supabase.from('companies').update({ name: name.trim() }).eq('id', state.company.id).then(({ error }) => {
+      if (!error) setState((current) => ({ ...current, company: current.company ? { ...current.company, name: name.trim() } : null }));
+    });
   };
 
   const updateProfile: AuthContextValue['updateProfile'] = (patch) => {
     if (!state.user) return;
-    const updated = db.users.update(state.user.id, patch);
-    if (updated) setState((s) => ({ ...s, user: updated }));
+    void supabase.from('profiles').update({ name: patch.name, phone: patch.phone }).eq('id', state.user.id).then(({ error }) => {
+      if (!error) setState((current) => ({ ...current, user: current.user ? { ...current.user, ...patch } : null }));
+    });
   };
 
   const value = useMemo<AuthContextValue>(
-    () => ({
-      ...state,
-      login,
-      registerCompany,
-      logout,
-      addDriver,
-      updateCompanyName,
-      updateProfile,
-    }),
+    () => ({ ...state, login, registerCompany, logout, addDriver, updateCompanyName, updateProfile }),
+    // The auth handlers intentionally close over the current authenticated state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state],
   );

@@ -41,3 +41,11 @@
 - [x] Add an admin dashboard driver-status board with red active-trip, green waiting/break, and black unavailable states for sickness/leave/holiday.
 - [x] Expand the desktop dashboard layout beyond the narrow mobile column while preserving responsive mobile behavior.
 - [x] Add tests for daily-log dates, role permissions, driver statuses, and responsive dashboard behavior, then publish the update.
+- [ ] Define production SaaS readiness requirements for multiple German taxi companies, including real authentication, tenant isolation, backups, auditability, and cross-device synchronization.
+- [ ] Prepare a pilot onboarding flow for at least two taxi companies with separate company workspaces and driver invitations.
+- [ ] Define pilot success metrics, feedback capture, support process, and data migration/export safeguards before subscriptions.
+- [ ] Create a pre-subscription launch checklist covering hosting, privacy/security, terms, billing, and operational support.
+- [ ] Replace browser-local persistence with a server-backed multi-company data layer and remove production reliance on localStorage.
+- [ ] Replace local password storage and demo login with secure account activation, sign-in, password recovery, and driver invitation flows.
+- [ ] Remove demo credentials, seeded-company controls, and user-visible demo language from the production experience.
+- [ ] Implement production data migration, audit logging, backups, and cross-device synchronization before onboarding real companies.

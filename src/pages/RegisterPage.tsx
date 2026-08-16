@@ -15,13 +15,13 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 4) {
       setError('Das Passwort muss mindestens 4 Zeichen lang sein');
       return;
     }
-    const result = registerCompany({ companyName, adminName, email, password, phone });
+    const result = await registerCompany({ companyName, adminName, email, password, phone });
     if (!result.ok) {
       setError(result.error);
       return;

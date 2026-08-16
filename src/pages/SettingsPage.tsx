@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [driverForm, setDriverForm] = useState(emptyDriverForm);
   const [driverError, setDriverError] = useState('');
+  const [lastInviteUrl, setLastInviteUrl] = useState('');
 
   const [, forceTick] = useState(0);
   const [permission, setPermission] = useState(notificationPermission());
@@ -45,8 +46,8 @@ export default function SettingsPage() {
     [company],
   );
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -68,6 +69,7 @@ export default function SettingsPage() {
     setEditingDriverId(null);
     setDriverForm(emptyDriverForm);
     setDriverError('');
+    setLastInviteUrl('');
     setDriverModalOpen(true);
   };
 
@@ -86,7 +88,7 @@ export default function SettingsPage() {
     setDriverModalOpen(true);
   };
 
-  const handleSubmitDriver = (e: React.FormEvent) => {
+  const handleSubmitDriver = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (editingDriverId) {
@@ -98,24 +100,11 @@ export default function SettingsPage() {
         setDriverError('Nur die Geschäftsführung kann Fahrerdaten ändern');
         return;
       }
-      db.users.updateForCompany(company.id, editingDriverId, {
-        name: driverForm.name.trim(),
-        phone: driverForm.phone.trim() || undefined,
-        employeeNumber: driverForm.employeeNumber.trim() || undefined,
-        licenseType: driverForm.licenseType.trim() || undefined,
-        workDays: driverForm.workDays.length > 0 ? driverForm.workDays : undefined,
-        ...(driverForm.password ? { password: driverForm.password } : {}),
-      });
-      setDriverModalOpen(false);
-      forceTick((n) => n + 1);
+      setDriverError('Die Bearbeitung bestehender Fahrer wird nach der Einladungssynchronisierung verfügbar.');
       return;
     }
 
-    if (driverForm.password.length < 4) {
-      setDriverError('Das Passwort muss mindestens 4 Zeichen lang sein');
-      return;
-    }
-    const result = addDriver(driverForm);
+    const result = await addDriver(driverForm);
     if (!result.ok) {
       setDriverError(result.error);
       return;
@@ -123,6 +112,7 @@ export default function SettingsPage() {
     setDriverModalOpen(false);
     setDriverForm(emptyDriverForm);
     setDriverError('');
+    setLastInviteUrl(result.inviteUrl ?? '');
   };
 
   const handleBackup = () => {
@@ -221,8 +211,17 @@ export default function SettingsPage() {
               </button>
             </div>
             <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-ink/60">
-              Die Geschäftsführung legt hier pro Fahrer ein eigenes Konto mit E-Mail und Passwort an. Der Fahrer meldet sich anschließend mit diesen Zugangsdaten an und sieht nur seine zugewiesenen Fahrten. Da TaxiSchild offline-first mit localStorage arbeitet, gibt es keinen automatischen E-Mail-Versand; Zugangsdaten müssen sicher direkt übergeben werden.
+              Die Geschäftsführung erstellt hier eine sichere Einladung. Der Fahrer öffnet den Link, legt sein eigenes Passwort an und sieht danach nur seine zugewiesenen Fahrten.
             </p>
+            {lastInviteUrl && (
+              <div className="mb-3 rounded-xl border border-success/30 bg-success/5 p-3">
+                <p className="text-xs font-bold text-success">Einladung erstellt — Link sicher an den Fahrer übergeben:</p>
+                <div className="mt-2 flex gap-2">
+                  <Input value={lastInviteUrl} readOnly className="text-xs" aria-label="Fahrer-Einladungslink" />
+                  <Button type="button" variant="secondary" onClick={() => void navigator.clipboard?.writeText(lastInviteUrl)}>Kopieren</Button>
+                </div>
+              </div>
+            )}
             {drivers.length === 0 ? (
               <p className="text-sm text-ink/45">Es wurden noch keine Fahrerzugänge angelegt</p>
             ) : (
@@ -335,18 +334,11 @@ export default function SettingsPage() {
               ))}
             </div>
           </Field>
-          <Field
-            label={editingDriverId ? 'Neues Passwort' : 'Passwort für den Fahrer'}
-            hint={editingDriverId ? 'leer lassen, um es nicht zu ändern' : 'Nach dem Speichern sicher an den Fahrer übergeben'}
-            required={!editingDriverId}
-          >
-            <Input
-              type="password"
-              value={driverForm.password}
-              onChange={(e) => setDriverForm({ ...driverForm, password: e.target.value })}
-              required={!editingDriverId}
-            />
-          </Field>
+          {!editingDriverId && (
+            <p className="rounded-xl bg-ink/5 px-3 py-2 text-xs leading-relaxed text-ink/60">
+              Das Passwort legt der Fahrer selbst über den Einladungslink fest. Es wird nicht von der Geschäftsführung gespeichert.
+            </p>
+          )}
           {driverError && (
             <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{driverError}</p>
           )}

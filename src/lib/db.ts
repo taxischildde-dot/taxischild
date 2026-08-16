@@ -6,6 +6,91 @@
 
 import type { Company, User, Trip, Vehicle, DailyLog } from '../types';
 import { readAll, writeAll, uid } from './storage';
+import { isSupabaseConfigured, supabase } from './supabase';
+
+const cloudWarn = (operation: string, error: { message: string } | null) => {
+  if (error) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, error.message);
+};
+
+const syncProfilePatch = (id: string, patch: Partial<User>) => {
+  if (!isSupabaseConfigured) return;
+  void supabase
+    .from('profiles')
+    .update({ name: patch.name, phone: patch.phone, driver_number: patch.employeeNumber, license_type: patch.licenseType, working_days: patch.workDays, availability_status: patch.availabilityStatus })
+    .eq('id', id)
+    .then(({ error }) => cloudWarn('profile update', error));
+};
+
+const syncTrip = (trip: Trip) => {
+  if (!isSupabaseConfigured) return;
+  void supabase
+    .from('trips')
+    .upsert(
+      {
+        id: trip.id,
+        company_id: trip.companyId,
+        customer_name: trip.customerName,
+        customer_phone: trip.customerPhone ?? null,
+        pickup_address: trip.pickupAddress,
+        destination_address: trip.destinationAddress,
+        destination_code: trip.destinationCode ?? null,
+        scheduled_at: trip.scheduledAt,
+        due_at: trip.dueAt ?? null,
+        price: trip.price ?? null,
+        currency: trip.currency,
+        status: trip.status === 'scheduled' ? 'planned' : trip.status,
+        payment_method: trip.paymentMethod === 'health_insurance' ? 'krankenkasse' : trip.paymentMethod === 'municipality_school' ? 'gemeinde' : trip.paymentMethod,
+        entry_source: trip.entrySource,
+        driver_id: trip.driverId ?? null,
+        created_by: trip.createdBy || null,
+        cancellation_reason: trip.cancellationReason ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    )
+    .then(({ error }) => cloudWarn('trip sync', error));
+};
+
+const syncVehicle = (vehicle: Vehicle) => {
+  if (!isSupabaseConfigured) return;
+  void supabase
+    .from('vehicles')
+    .upsert(
+      {
+        id: vehicle.id,
+        company_id: vehicle.companyId,
+        plate_number: vehicle.plate,
+        model: vehicle.model,
+        status: vehicle.status === 'inactive' ? 'out_of_service' : vehicle.status,
+        assigned_driver_ids: vehicle.assignedDriverIds ?? [],
+      },
+      { onConflict: 'id' },
+    )
+    .then(({ error }) => cloudWarn('vehicle sync', error));
+};
+
+const syncDailyLog = (log: DailyLog) => {
+  if (!isSupabaseConfigured) return;
+  void supabase
+    .from('daily_logs')
+    .upsert(
+      {
+        id: log.id,
+        company_id: log.companyId,
+        driver_id: log.driverId,
+        date: log.date,
+        odometer_start: log.odometerStart ?? null,
+        odometer_end: log.odometerEnd ?? null,
+        work_start: log.workStart ?? null,
+        work_end: log.workEnd ?? null,
+        break_minutes: log.breakMinutes ?? 0,
+        notes: log.notes ?? null,
+        updated_at: log.updatedAt,
+      },
+      { onConflict: 'company_id,driver_id,date' },
+    )
+    .then(({ error }) => cloudWarn('daily log sync', error));
+};
 
 const KEYS = {
   companies: 'companies',
@@ -30,6 +115,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.companies, all);
+      if (isSupabaseConfigured) void supabase.from('companies').update({ name: all[idx].name }).eq('id', id).then(({ error }) => cloudWarn('company update', error));
       return all[idx];
     },
   },
@@ -53,6 +139,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.users, all);
+      syncProfilePatch(id, patch);
       return all[idx];
     },
     updateForCompany: (companyId: string, id: string, patch: Partial<User>): User | undefined => {
@@ -78,6 +165,7 @@ export const db = {
     create: (trip: Omit<Trip, 'id' | 'createdAt'>): Trip => {
       const newTrip: Trip = { ...trip, id: uid('trp'), createdAt: new Date().toISOString() };
       writeAll(KEYS.trips, [...db.trips.all(), newTrip]);
+      syncTrip(newTrip);
       return newTrip;
     },
     update: (id: string, patch: Partial<Trip>): Trip | undefined => {
@@ -86,6 +174,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.trips, all);
+      syncTrip(all[idx]);
       return all[idx];
     },
     updateForCompany: (companyId: string, id: string, patch: Partial<Trip>): Trip | undefined => {
@@ -106,6 +195,7 @@ export const db = {
     create: (vehicle: Omit<Vehicle, 'id' | 'createdAt'>): Vehicle => {
       const newVehicle: Vehicle = { ...vehicle, id: uid('veh'), createdAt: new Date().toISOString() };
       writeAll(KEYS.vehicles, [...db.vehicles.all(), newVehicle]);
+      syncVehicle(newVehicle);
       return newVehicle;
     },
     update: (id: string, patch: Partial<Vehicle>): Vehicle | undefined => {
@@ -114,6 +204,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.vehicles, all);
+      syncVehicle(all[idx]);
       return all[idx];
     },
     updateForCompany: (companyId: string, id: string, patch: Partial<Vehicle>): Vehicle | undefined => {
@@ -159,10 +250,12 @@ export const db = {
           ...patch,
         };
         writeAll(KEYS.dailyLogs, [...all, created]);
+        syncDailyLog(created);
         return created;
       }
       all[idx] = { ...all[idx], ...patch, updatedAt: now };
       writeAll(KEYS.dailyLogs, all);
+      syncDailyLog(all[idx]);
       return all[idx];
     },
   },

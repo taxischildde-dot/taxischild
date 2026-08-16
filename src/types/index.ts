@@ -23,7 +23,9 @@ export interface User {
   role: UserRole;
   name: string;
   email: string;
-  password: string; // nur lokale Demo-Speicherung — bei Cloud-Anbindung durch echte Auth ersetzen
+  /** Passwords are never stored in TaxiSchild; Supabase Auth owns credentials. */
+  /** Legacy test-only field; production credentials live only in Supabase Auth. */
+  password?: string;
   phone?: string;
   // Zusätzliche Fahrerdaten (nur relevant für role === 'driver')
   employeeNumber?: string; // Fahrer-Nr., erscheint im Fahrbericht
