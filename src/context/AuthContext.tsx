@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Company, User, Weekday } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { hydrateCompanyCache } from '../lib/cloudSync';
+import { getLoginErrorMessage, getResendErrorMessage } from '../lib/authMessages';
 
 interface AuthState {
   user: User | null;
@@ -114,14 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthContextValue['login'] = async (email, password) => {
     if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error || !data.user) {
-      const errorCode = error?.code ?? '';
-      const errorText = error?.message?.toLowerCase() ?? '';
-      if (errorCode === 'email_not_confirmed' || errorText.includes('email not confirmed')) {
-        return { ok: false, error: 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie auch den Spam-Ordner.' };
-      }
-      return { ok: false, error: 'E-Mail-Adresse oder Passwort ist falsch' };
-    }
+    if (error || !data.user) return { ok: false, error: getLoginErrorMessage(error) };
     await loadAuthenticatedUser(data.user.id);
     return { ok: true };
   };
@@ -136,13 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: normalizedEmail,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
-    if (error) {
-      const errorText = error.message.toLowerCase();
-      if (errorText.includes('rate limit') || errorText.includes('too many')) {
-        return { ok: false, error: 'Zu viele Anfragen. Bitte warten Sie einige Minuten und versuchen Sie es erneut.' };
-      }
-      return { ok: false, error: 'Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte prüfen Sie die Adresse oder versuchen Sie es später erneut.' };
-    }
+    if (error) return { ok: false, error: getResendErrorMessage(error) };
     return { ok: true, message: 'Eine neue Bestätigungs-E-Mail wurde versendet. Prüfen Sie bitte auch den Spam-Ordner.' };
   };
 
