@@ -87,3 +87,4 @@
 - [x] Identify and eliminate the shared profile and entity mutation path that lets asynchronous Supabase failures escape into the global error screen.
 - [ ] Deliver assigned-trip and trip-change updates to drivers automatically without manual page refresh, using Realtime with a bounded fallback refresh.
 - [x] Complete a documented DSGVO, EU data-residency, backup, scalability, and cost readiness review before paid customer onboarding.
+- [ ] Validate TaxiSchild product-market fit with a controlled pilot, measurable adoption criteria, and a documented German competitor comparison before scaling sales.
