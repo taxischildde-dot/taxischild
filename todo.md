@@ -82,3 +82,4 @@
 - [x] Isolate trip state advance updates from unhandled hydration or Supabase sync failures so pressing Start Trip never triggers the error boundary.
 - [x] Capture and eliminate the remaining production exception that occurs only when a driver presses Fahrt starten by separating RLS-compatible trip updates from trip creation.
 - [x] Allow drivers to start, complete, and edit operational details of their assigned trips directly without waiting for admin action.
+- [x] Isolate trip card rendering and status label branches so ongoing status display never throws a React render error.
