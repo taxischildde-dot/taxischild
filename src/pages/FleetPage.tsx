@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { getResponsibleDriverIds, isVehicleAssignedToUser } from '../types';
@@ -32,6 +33,7 @@ const emptyForm = {
 
 export default function FleetPage() {
   const { user, company } = useAuth();
+  const { cloudRefreshTick } = useOutletContext<{ cloudRefreshTick: number }>();
   const [refreshTick, setRefreshTick] = useState(0);
   const forceRefresh = () => setRefreshTick((n) => n + 1);
   const canManage = user?.role === 'admin';
@@ -175,7 +177,7 @@ export default function FleetPage() {
   };
 
   return (
-    <div>
+    <div data-cloud-refresh={cloudRefreshTick}>
       <TopBar title="Fuhrpark" subtitle={`${vehicles.length} Fahrzeuge`} />
 
       <div className="space-y-4 px-4 pt-4">

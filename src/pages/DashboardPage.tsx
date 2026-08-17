@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { hydrateCompanyCache } from '../lib/cloudSync';
@@ -21,6 +21,7 @@ import type { Trip } from '../types';
 
 export default function DashboardPage() {
   const { user, company } = useAuth();
+  const { cloudRefreshTick } = useOutletContext<{ cloudRefreshTick: number }>();
   const navigate = useNavigate();
   const [, setRefreshTick] = useState(0);
   const [actionError, setActionError] = useState('');
@@ -83,7 +84,7 @@ export default function DashboardPage() {
   const activeTrips = trips.filter((t) => t.status === 'scheduled' || t.status === 'ongoing').slice(0, 6);
 
   return (
-    <div>
+    <div data-cloud-refresh={cloudRefreshTick}>
       <TopBar
         title={`Hallo, ${user?.name?.split(' ')[0] ?? ''}`}
         subtitle={user?.role === 'admin' ? 'Überblick über Ihr Unternehmen heute' : 'Ihre heutigen Fahrten'}

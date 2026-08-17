@@ -40,6 +40,7 @@ export function AppLayout() {
   const { user, company } = useAuth();
   const [tripAlert, setTripAlert] = useState('');
   const [vehicleAlert, setVehicleAlert] = useState('');
+  const [cloudRefreshTick, setCloudRefreshTick] = useState(0);
   const companyId = company?.id;
   const userId = user?.id;
   const userEmail = user?.email;
@@ -78,7 +79,11 @@ export function AppLayout() {
 
     const refreshDriverTrips = async () => {
       try {
-        await hydrateCompanyCache(companyId, { userRole: 'driver', userId });
+        const hydration = await hydrateCompanyCache(companyId, { userRole: 'driver', userId });
+        if (!hydration.ok) {
+          console.warn('[TaxiSchild] Driver refresh postponed', hydration.error);
+          return;
+        }
       } catch (error) {
         console.warn('[TaxiSchild] Driver refresh postponed after a network error', error);
         return;
@@ -145,10 +150,11 @@ export function AppLayout() {
         console.warn('[TaxiSchild] Driver vehicle seen-cache write skipped', error);
       }
       firstSync = false;
+      setCloudRefreshTick((current) => current + 1);
     };
 
     void refreshDriverTrips();
-    const interval = window.setInterval(() => void refreshDriverTrips(), 60000);
+    const interval = window.setInterval(() => void refreshDriverTrips(), 30000);
     const channel = supabase
       .channel(`driver-alerts-${companyId}-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => void refreshDriverTrips())
@@ -161,6 +167,38 @@ export function AppLayout() {
       void supabase.removeChannel(channel);
     };
   }, [companyId, userId, userEmail, isDriver, navigate]);
+
+  useEffect(() => {
+    if (!companyId || !userId || user?.role !== 'admin' || !isSupabaseConfigured) return;
+    let active = true;
+    const refreshCompanyData = async () => {
+      try {
+        const hydration = await hydrateCompanyCache(companyId, { userRole: 'admin', userId });
+        if (!hydration.ok) {
+          console.warn('[TaxiSchild] Admin refresh postponed', hydration.error);
+          return;
+        }
+        if (active) setCloudRefreshTick((current) => current + 1);
+      } catch (error) {
+        console.warn('[TaxiSchild] Admin refresh crashed', error);
+      }
+    };
+
+    void refreshCompanyData();
+    const interval = window.setInterval(() => void refreshCompanyData(), 30000);
+    const channel = supabase
+      .channel(`company-cache-${companyId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
+      .subscribe();
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [companyId, user?.role, userId]);
 
   return (
     <div className="min-h-screen bg-cream-200">
@@ -188,7 +226,7 @@ export function AppLayout() {
       )}
 
       <div className="mx-auto w-full max-w-[1440px] px-3 pb-28 sm:px-6 lg:px-8 lg:pb-10">
-        <Outlet />
+        <Outlet context={{ cloudRefreshTick }} />
       </div>
 
       {!hideFab && (

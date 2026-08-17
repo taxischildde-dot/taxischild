@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, syncProfilePatch } from '../lib/db';
 import { hydrateCompanyCache } from '../lib/cloudSync';
@@ -36,6 +36,7 @@ const emptyDriverForm = {
 
 export default function SettingsPage() {
   const { user, company, logout, updateCompanyName, updateProfile, addDriver, deleteDriver } = useAuth();
+  const { cloudRefreshTick } = useOutletContext<{ cloudRefreshTick: number }>();
   const navigate = useNavigate();
 
   const [companyName, setCompanyName] = useState(company?.name ?? '');
@@ -206,7 +207,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div>
+    <div data-cloud-refresh={cloudRefreshTick}>
       <TopBar title="Einstellungen" subtitle="Ihr Konto und Unternehmen" />
 
       <div className="space-y-5 px-4 pt-4 pb-6">

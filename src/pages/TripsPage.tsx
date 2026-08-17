@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { TopBar } from '../components/layout/TopBar';
@@ -17,6 +17,7 @@ type FilterKey = 'all' | TripStatus | 'unassigned';
 
 export default function TripsPage() {
   const { user, company } = useAuth();
+  const { cloudRefreshTick } = useOutletContext<{ cloudRefreshTick: number }>();
   const navigate = useNavigate();
   const [refreshTick, setRefreshTick] = useState(0);
   const [actionError, setActionError] = useState('');
@@ -67,7 +68,7 @@ export default function TripsPage() {
         });
 
   return (
-    <div>
+    <div data-cloud-refresh={cloudRefreshTick}>
       <TopBar title={user?.role === 'driver' ? 'Meine Fahrten heute' : 'Fahrten'} subtitle={`${trips.length} ${user?.role === 'driver' ? 'Fahrten heute' : 'Buchungen'}`} />
 
       <div className="space-y-4 px-4 pt-4">
