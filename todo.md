@@ -86,3 +86,4 @@
 - [ ] Add primary vehicle assignment selection when creating or updating drivers and insulate driver update actions from unhandled crashes.
 - [x] Identify and eliminate the shared profile and entity mutation path that lets asynchronous Supabase failures escape into the global error screen.
 - [ ] Deliver assigned-trip and trip-change updates to drivers automatically without manual page refresh, using Realtime with a bounded fallback refresh.
+- [x] Complete a documented DSGVO, EU data-residency, backup, scalability, and cost readiness review before paid customer onboarding.

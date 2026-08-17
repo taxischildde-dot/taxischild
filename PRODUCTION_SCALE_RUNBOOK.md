@@ -24,7 +24,7 @@ Supabase backups, retention, and point-in-time recovery depend on the selected S
 
 The present Vercel Autoscale deployment is appropriate for a stateless web client and can scale request handling, but it does not remove database limits or inefficient client queries. The next scale milestone is to move employer reports and long-range trip history to paginated or server-side aggregate queries rather than downloading an entire company history into the browser. Do this before a company has a large multi-year trip archive.
 
-Realtime should be enabled only for the tables and events required by the driver workspace. The application retains a 60-second polling fallback for driver assignment changes when Realtime is unavailable. If polling or Realtime traffic becomes material, centralize notifications through a server-side event path instead of increasing the polling frequency.
+Realtime should be enabled only for the tables and events required by the driver workspace. Run `supabase_realtime_dispatch.sql` once to publish `trips`, `vehicles`, and `profiles`. The application retains a 30-second polling fallback when Realtime is unavailable. If polling or Realtime traffic becomes material, centralize notifications through a server-side event path instead of increasing the polling frequency.
 
 Validate capacity in stages: first two pilot companies, then ten companies, then a controlled load test with representative concurrent admin and driver sessions. Measure login latency, dashboard hydration time, trip-save latency, Supabase error rate, Realtime delivery delay, browser memory usage, and Vercel response errors. Do not invite hundreds of companies until the largest pilot dataset passes the agreed thresholds.
 
