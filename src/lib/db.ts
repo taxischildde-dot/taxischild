@@ -9,41 +9,64 @@ import { readAll, writeAll, uid } from './storage';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud, updateTripInCloud } from './cloudSync';
 
-const cloudWarn = (operation: string, error: { message: string } | null) => {
-  if (error) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, error.message);
+const cloudWarn = (operation: string, error: unknown) => {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : null;
+  if (message) console.warn(`[TaxiSchild] Supabase ${operation} failed; local cache retained`, message);
 };
 
-const syncProfilePatch = (id: string, patch: Partial<User>) => {
-  if (!isSupabaseConfigured) return;
-  void supabase
-    .from('profiles')
-    .update({ name: patch.name, phone: patch.phone, driver_number: patch.employeeNumber, license_type: patch.licenseType, working_days: patch.workDays, availability_status: patch.availabilityStatus })
-    .eq('id', id)
-    .then(({ error }) => cloudWarn('profile update', error));
+type CloudMutationResult = { ok: true } | { ok: false; error: string };
+
+const getCloudError = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
+
+// Every entity save passes through this guard. A rejected network request must remain a
+// recoverable save error, never an unhandled rejection that can take down the React tree.
+const runBackgroundSync = (operation: string, request: () => Promise<CloudMutationResult>) => {
+  void Promise.resolve()
+    .then(request)
+    .then((result) => {
+      if (!result.ok) cloudWarn(operation, result.error);
+    })
+    .catch((error) => cloudWarn(`${operation} crashed`, error));
+};
+
+export const syncProfilePatch = async (id: string, patch: Partial<User>): Promise<CloudMutationResult> => {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: patch.name,
+        phone: patch.phone,
+        driver_number: patch.employeeNumber,
+        license_type: patch.licenseType,
+        working_days: patch.workDays,
+        availability_status: patch.availabilityStatus,
+      })
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: 'Der Fahrer wurde nicht gefunden oder darf nicht geändert werden' };
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getCloudError(error, 'Die Fahrerdaten konnten nicht gespeichert werden') };
+  }
 };
 
 const syncTrip = (trip: Trip, mode: 'create' | 'update') => {
   if (!isSupabaseConfigured) return;
-  const cloudRequest = mode === 'update' ? updateTripInCloud(trip) : syncTripToCloud(trip);
-  void cloudRequest
-    .then((result) => {
-      if (!result.ok) console.warn(`[TaxiSchild] Supabase trip sync failed; local cache retained`, result.error);
-    })
-    .catch((error) => console.warn('[TaxiSchild] Supabase trip sync crashed; local cache retained', error));
+  runBackgroundSync('trip sync', () => mode === 'update' ? updateTripInCloud(trip) : syncTripToCloud(trip));
 };
 
 const syncVehicle = (vehicle: Vehicle) => {
   if (!isSupabaseConfigured) return;
-  void syncVehicleToCloud(vehicle).then((result) => {
-    if (!result.ok) console.warn(`[TaxiSchild] Supabase vehicle sync failed; local cache retained`, result.error);
-  });
+  runBackgroundSync('vehicle sync', () => syncVehicleToCloud(vehicle));
 };
 
 const syncDailyLog = (log: DailyLog) => {
   if (!isSupabaseConfigured) return;
-  void syncDailyLogToCloud(log).then((result) => {
-    if (!result.ok) console.warn(`[TaxiSchild] Supabase daily-log sync failed; local cache retained`, result.error);
-  });
+  runBackgroundSync('daily-log sync', () => syncDailyLogToCloud(log));
 };
 
 const KEYS = {
@@ -69,7 +92,16 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.companies, all);
-      if (isSupabaseConfigured) void supabase.from('companies').update({ name: all[idx].name }).eq('id', id).then(({ error }) => cloudWarn('company update', error));
+      if (isSupabaseConfigured) {
+        void (async () => {
+          try {
+            const { error } = await supabase.from('companies').update({ name: all[idx].name }).eq('id', id);
+            if (error) cloudWarn('company update', error.message);
+          } catch (error) {
+            cloudWarn('company update crashed', error);
+          }
+        })();
+      }
       return all[idx];
     },
   },
@@ -93,7 +125,7 @@ export const db = {
       if (idx === -1) return undefined;
       all[idx] = { ...all[idx], ...patch };
       writeAll(KEYS.users, all);
-      syncProfilePatch(id, patch);
+      runBackgroundSync('profile update', () => syncProfilePatch(id, patch));
       return all[idx];
     },
     updateForCompany: (companyId: string, id: string, patch: Partial<User>): User | undefined => {

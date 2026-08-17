@@ -83,3 +83,5 @@
 - [x] Capture and eliminate the remaining production exception that occurs only when a driver presses Fahrt starten by separating RLS-compatible trip updates from trip creation.
 - [x] Allow drivers to start, complete, and edit operational details of their assigned trips directly without waiting for admin action.
 - [x] Isolate trip card rendering and status label branches so ongoing status display never throws a React render error.
+- [ ] Add primary vehicle assignment selection when creating or updating drivers and insulate driver update actions from unhandled crashes.
+- [x] Identify and eliminate the shared profile and entity mutation path that lets asynchronous Supabase failures escape into the global error screen.

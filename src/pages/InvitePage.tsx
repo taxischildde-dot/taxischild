@@ -23,13 +23,20 @@ export default function InvitePage() {
 
   useEffect(() => {
     let active = true;
-    void supabase.rpc('get_driver_invite', { invite_token: token }).then(({ data, error: requestError }) => {
-      if (!active) return;
-      const record = Array.isArray(data) ? data[0] : data;
-      if (requestError || !record) setError('Diese Fahrereinladung ist ungültig oder abgelaufen.');
-      else setInvite(record as InviteRecord);
-      setLoading(false);
-    });
+    void (async () => {
+      try {
+        const { data, error: requestError } = await supabase.rpc('get_driver_invite', { invite_token: token });
+        if (!active) return;
+        const record = Array.isArray(data) ? data[0] : data;
+        if (requestError || !record) setError('Diese Fahrereinladung ist ungültig oder abgelaufen.');
+        else setInvite(record as InviteRecord);
+      } catch (error) {
+        console.warn('[TaxiSchild] Invitation lookup crashed', error);
+        if (active) setError('Die Einladung konnte gerade nicht geladen werden. Bitte erneut versuchen.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => {
       active = false;
     };
@@ -44,23 +51,29 @@ export default function InvitePage() {
     setSaving(true);
     setError('');
     setNotice('');
-    const { data, error: signupError } = await supabase.auth.signUp({
-      email: invite.driver_email,
-      password,
-      options: {
-        data: { invite_token: token, name: invite.driver_name },
-        emailRedirectTo: `${getPublicAppUrl()}/auth/callback`,
-      },
-    });
-    setSaving(false);
-    if (signupError) {
-      setError(signupError.message);
-      return;
-    }
-    if (data.session) {
-      navigate('/');
-    } else {
-      setNotice('Ihr Passwort wurde gespeichert. Bitte bestätigen Sie jetzt Ihre E-Mail-Adresse und melden Sie sich danach an. Prüfen Sie auch den Spam-Ordner.');
+    try {
+      const { data, error: signupError } = await supabase.auth.signUp({
+        email: invite.driver_email,
+        password,
+        options: {
+          data: { invite_token: token, name: invite.driver_name },
+          emailRedirectTo: `${getPublicAppUrl()}/auth/callback`,
+        },
+      });
+      if (signupError) {
+        setError(signupError.message);
+        return;
+      }
+      if (data.session) {
+        navigate('/');
+      } else {
+        setNotice('Ihr Passwort wurde gespeichert. Bitte bestätigen Sie jetzt Ihre E-Mail-Adresse und melden Sie sich danach an. Prüfen Sie auch den Spam-Ordner.');
+      }
+    } catch (error) {
+      console.warn('[TaxiSchild] Invitation activation crashed', error);
+      setError('Die Aktivierung konnte nicht gespeichert werden. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
     }
   };
 

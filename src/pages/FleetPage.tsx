@@ -44,7 +44,16 @@ export default function FleetPage() {
 
   useEffect(() => {
     if (!companyId) return;
-    void hydrateCompanyCache(companyId, user?.role === 'driver' && user.id ? { userRole: 'driver', userId: user.id } : {}).then(() => setRefreshTick((n) => n + 1));
+    void (async () => {
+      try {
+        const hydration = await hydrateCompanyCache(companyId, user?.role === 'driver' && user.id ? { userRole: 'driver', userId: user.id } : {});
+        if (!hydration.ok) console.warn('[TaxiSchild] Fleet refresh skipped', hydration.error);
+      } catch (error) {
+        console.warn('[TaxiSchild] Fleet refresh crashed', error);
+      } finally {
+        setRefreshTick((n) => n + 1);
+      }
+    })();
   }, [companyId, user?.id, user?.role]);
 
   useEffect(() => {
@@ -52,13 +61,23 @@ export default function FleetPage() {
       setPendingInvites([]);
       return;
     }
-    void supabase
-      .from('driver_invites')
-      .select('id,name,email,created_at')
-      .eq('company_id', companyId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setPendingInvites((data ?? []).map((row) => ({ id: String(row.id), name: String(row.name), email: String(row.email), createdAt: String(row.created_at) }))));
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('driver_invites')
+          .select('id,name,email,created_at')
+          .eq('company_id', companyId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.warn('[TaxiSchild] Pending driver loading skipped', error.message);
+          return;
+        }
+        setPendingInvites((data ?? []).map((row) => ({ id: String(row.id), name: String(row.name), email: String(row.email), createdAt: String(row.created_at) })));
+      } catch (error) {
+        console.warn('[TaxiSchild] Pending driver loading crashed', error);
+      }
+    })();
   }, [companyId, user?.role, refreshTick]);
 
   const vehicles = companyId

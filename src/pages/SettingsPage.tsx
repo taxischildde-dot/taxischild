@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../lib/db';
+import { db, syncProfilePatch } from '../lib/db';
 import { hydrateCompanyCache } from '../lib/cloudSync';
 import { supabase } from '../lib/supabase';
 import { getPublicAppUrl } from '../lib/appUrl';
@@ -70,10 +70,19 @@ export default function SettingsPage() {
     if (!error) setPendingInvites((data ?? []) as PendingDriverInvite[]);
   }, [companyId, user?.role]);
 
-  const refreshDriverData = useCallback(async () => {
-    if (companyId) await hydrateCompanyCache(companyId);
-    await refreshPendingInvites();
-    forceTick((current) => current + 1);
+  const refreshDriverData = useCallback(async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      if (companyId) {
+        const hydration = await hydrateCompanyCache(companyId);
+        if (!hydration.ok) return hydration;
+      }
+      await refreshPendingInvites();
+      forceTick((current) => current + 1);
+      return { ok: true };
+    } catch (error) {
+      console.warn('[TaxiSchild] Driver refresh failed', error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Die Fahrerdaten konnten nicht neu geladen werden' };
+    }
   }, [companyId, refreshPendingInvites]);
 
   useEffect(() => {
@@ -143,16 +152,25 @@ export default function SettingsPage() {
         setDriverError('Nur die Geschäftsführung kann Fahrerdaten ändern');
         return;
       }
-      db.users.updateForCompany(company.id, editingDriverId, {
+      const patch = {
         name: driverForm.name.trim(),
         phone: driverForm.phone.trim() || undefined,
         employeeNumber: driverForm.employeeNumber.trim() || undefined,
         licenseType: driverForm.licenseType.trim() || undefined,
         workDays: driverForm.workDays.length > 0 ? driverForm.workDays : undefined,
-      });
+      };
+      const cloudSave = await syncProfilePatch(editingDriverId, patch);
+      if (!cloudSave.ok) {
+        setDriverError(cloudSave.error);
+        return;
+      }
+      const refreshed = await refreshDriverData();
+      if (!refreshed.ok) {
+        setDriverError(refreshed.error);
+        return;
+      }
       setDriverModalOpen(false);
       setDriverError('');
-      await refreshDriverData();
       return;
     }
 
@@ -165,7 +183,8 @@ export default function SettingsPage() {
     setDriverForm(emptyDriverForm);
     setDriverError('');
     setLastInviteUrl(result.inviteUrl ?? '');
-    await refreshDriverData();
+    const refreshed = await refreshDriverData();
+    if (!refreshed.ok) setDriverError(refreshed.error);
   };
 
   const handleBackup = () => {

@@ -79,19 +79,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, company: null, loading: true });
 
   const loadAuthenticatedUser = async (userId: string) => {
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (profileError || !profile) {
+    try {
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (profileError || !profile) {
+        setState({ user: null, company: null, loading: false });
+        return;
+      }
+      const typedProfile = profile as SupabaseProfile;
+      const { data: company } = await supabase.from('companies').select('*').eq('id', typedProfile.company_id).single();
+      const hydration = await hydrateCompanyCache(typedProfile.company_id, { userRole: typedProfile.role, userId: typedProfile.id });
+      if (!hydration.ok) {
+        console.warn('[TaxiSchild] Cloud hydration failed during auth; clearing stale local cache', hydration.error);
+        clearAppCache();
+      }
+      setState({ user: mapProfile(typedProfile), company: company ? mapCompany(company as SupabaseCompany) : null, loading: false });
+    } catch (error) {
+      console.warn('[TaxiSchild] Authentication hydration crashed', error);
       setState({ user: null, company: null, loading: false });
-      return;
     }
-    const typedProfile = profile as SupabaseProfile;
-    const { data: company } = await supabase.from('companies').select('*').eq('id', typedProfile.company_id).single();
-    const hydration = await hydrateCompanyCache(typedProfile.company_id, { userRole: typedProfile.role, userId: typedProfile.id });
-    if (!hydration.ok) {
-      console.warn('[TaxiSchild] Cloud hydration failed during auth; clearing stale local cache', hydration.error);
-      clearAppCache();
-    }
-    setState({ user: mapProfile(typedProfile), company: company ? mapCompany(company as SupabaseCompany) : null, loading: false });
   };
 
   useEffect(() => {
@@ -101,11 +106,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      if (data.session?.user) void loadAuthenticatedUser(data.session.user.id);
-      else setState({ user: null, company: null, loading: false });
-    });
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+        if (data.session?.user) void loadAuthenticatedUser(data.session.user.id);
+        else setState({ user: null, company: null, loading: false });
+      } catch (error) {
+        console.warn('[TaxiSchild] Session lookup crashed', error);
+        if (active) setState({ user: null, company: null, loading: false });
+      }
+    })();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
@@ -212,16 +223,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateCompanyName = (name: string) => {
     if (!state.company || state.user?.role !== 'admin') return;
-    void supabase.from('companies').update({ name: name.trim() }).eq('id', state.company.id).then(({ error }) => {
-      if (!error) setState((current) => ({ ...current, company: current.company ? { ...current.company, name: name.trim() } : null }));
-    });
+    void (async () => {
+      try {
+        const { error } = await supabase.from('companies').update({ name: name.trim() }).eq('id', state.company!.id);
+        if (!error) setState((current) => ({ ...current, company: current.company ? { ...current.company, name: name.trim() } : null }));
+        if (error) console.warn('[TaxiSchild] Company profile update skipped', error.message);
+      } catch (error) {
+        console.warn('[TaxiSchild] Company profile update crashed', error);
+      }
+    })();
   };
 
   const updateProfile: AuthContextValue['updateProfile'] = (patch) => {
     if (!state.user) return;
-    void supabase.from('profiles').update({ name: patch.name, phone: patch.phone }).eq('id', state.user.id).then(({ error }) => {
-      if (!error) setState((current) => ({ ...current, user: current.user ? { ...current.user, ...patch } : null }));
-    });
+    void (async () => {
+      try {
+        const { error } = await supabase.from('profiles').update({ name: patch.name, phone: patch.phone }).eq('id', state.user!.id);
+        if (!error) setState((current) => ({ ...current, user: current.user ? { ...current.user, ...patch } : null }));
+        if (error) console.warn('[TaxiSchild] Personal profile update skipped', error.message);
+      } catch (error) {
+        console.warn('[TaxiSchild] Personal profile update crashed', error);
+      }
+    })();
   };
 
   const value = useMemo<AuthContextValue>(
