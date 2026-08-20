@@ -8,6 +8,7 @@ import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { BottomNav } from './BottomNav';
 import { PlusIcon, TripIcon } from '../ui/Icons';
 import { formatTime } from '../../lib/format';
+import { playNotificationSound } from '../../lib/notificationSound';
 
 const seenTripsKey = (driverId: string) => `taxischild_seen_driver_trips_${driverId}`;
 const editedTripsKey = (driverId: string) => `taxischild_edited_driver_trips_${driverId}`;
@@ -58,6 +59,7 @@ export function AppLayout() {
 
     const nativeAlertsDisabledUntil = Number(window.sessionStorage.getItem('taxischild_disable_native_alerts_until') ?? '0');
     const notifyDriver = (title: string, body: string, path: string) => {
+      playNotificationSound();
       if (Date.now() < nativeAlertsDisabledUntil) return;
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
       try {

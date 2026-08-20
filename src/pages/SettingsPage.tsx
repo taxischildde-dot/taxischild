@@ -14,6 +14,7 @@ import { Modal } from '../components/ui/Modal';
 import { Field, Input } from '../components/ui/Field';
 import { weekdayLabel } from '../lib/format';
 import { notificationPermission, requestNotificationPermission } from '../lib/reminders';
+import { disableNotificationSound, enableNotificationSound, notificationSoundEnabled } from '../lib/notificationSound';
 import { BackupIcon, BuildingIcon, EditIcon, LogoutIcon, PlusIcon, SupportIcon, TrashIcon, UsersIcon } from '../components/ui/Icons';
 
 type PendingDriverInvite = {
@@ -53,6 +54,7 @@ export default function SettingsPage() {
 
   const [refreshTick, forceTick] = useState(0);
   const [permission, setPermission] = useState(notificationPermission());
+  const [soundEnabled, setSoundEnabled] = useState(() => notificationSoundEnabled());
 
   const companyId = company?.id;
   const drivers = companyId ? db.users.byCompany(companyId).filter((u) => u.role === 'driver') : [];
@@ -206,6 +208,16 @@ export default function SettingsPage() {
     if (result !== 'unsupported') setPermission(result);
   };
 
+  const handleToggleNotificationSound = async () => {
+    if (soundEnabled) {
+      disableNotificationSound();
+      setSoundEnabled(false);
+      return;
+    }
+    const enabled = await enableNotificationSound();
+    if (enabled) setSoundEnabled(true);
+  };
+
   return (
     <div data-cloud-refresh={cloudRefreshTick}>
       <TopBar title="Einstellungen" subtitle="Ihr Konto und Unternehmen" />
@@ -263,6 +275,15 @@ export default function SettingsPage() {
               Erinnerungen aktivieren
             </Button>
           )}
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-ink/5 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-extrabold text-ink">Ton bei neuer Meldung</p>
+              <p className="text-xs text-ink/50">Aktivierung erforderlich durch einen Klick</p>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void handleToggleNotificationSound()}>
+              {soundEnabled ? 'Ton ausschalten' : 'Ton aktivieren'}
+            </Button>
+          </div>
         </Card>
 
         {user?.role === 'admin' && (
