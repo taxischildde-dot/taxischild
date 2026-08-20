@@ -11,11 +11,11 @@ import { useTripActions } from '../hooks/useTripActions';
 import { SearchIcon } from '../components/ui/Icons';
 import type { Trip, TripStatus } from '../types';
 import { TRIP_STATUS_LABEL } from '../lib/labels';
-import { toDateKey } from '../lib/format';
+import { startOfWeek, toDateKey, tomorrowDateKey } from '../lib/format';
 import { hydrateCompanyCache } from '../lib/cloudSync';
 
 type FilterKey = 'all' | TripStatus | 'unassigned';
-type ArchivePeriod = 'all' | 'upcoming' | 'today' | 'month';
+type ArchivePeriod = 'all' | 'upcoming' | 'today' | 'tomorrow' | 'week' | 'month';
 
 export default function TripsPage() {
   const { user, company } = useAuth();
@@ -79,6 +79,13 @@ export default function TripsPage() {
           if (user.role !== 'admin') return true;
           const tripDate = toDateKey(new Date(t.scheduledAt));
           if (archivePeriod === 'today' && tripDate !== todayKey) return false;
+          if (archivePeriod === 'tomorrow' && tripDate !== tomorrowDateKey()) return false;
+          if (archivePeriod === 'week') {
+            const weekStart = startOfWeek().getTime();
+            const weekEnd = new Date(startOfWeek()).setDate(startOfWeek().getDate() + 7);
+            const scheduled = new Date(t.scheduledAt).getTime();
+            if (scheduled < weekStart || scheduled >= weekEnd) return false;
+          }
           if (archivePeriod === 'upcoming' && new Date(t.scheduledAt).getTime() < new Date(`${todayKey}T00:00:00`).getTime()) return false;
           if (archivePeriod === 'month') {
             const now = new Date();
@@ -133,11 +140,31 @@ export default function TripsPage() {
               </div>
               {historyLoading && <span className="shrink-0 text-xs font-bold text-amber-700">Archiv wird geladen…</span>}
             </div>
+            <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1">
+              {([
+                ['today', 'Heute'],
+                ['tomorrow', 'Morgen'],
+                ['week', 'Diese Woche'],
+                ['upcoming', 'Kommende'],
+                ['all', 'Alle Buchungen'],
+              ] as Array<[ArchivePeriod, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setArchivePeriod(value)}
+                  className={`shrink-0 rounded-pill border px-3 py-1.5 text-xs font-extrabold transition ${archivePeriod === value ? 'border-asphalt-900 bg-asphalt-900 text-cream-100' : 'border-cream-400 bg-white text-ink/60 hover:bg-cream-200'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Select value={archivePeriod} onChange={(e) => setArchivePeriod(e.target.value as ArchivePeriod)} aria-label="Zeitraum filtern">
                 <option value="all">Alle Zeiträume</option>
                 <option value="upcoming">Kommende Fahrten</option>
                 <option value="today">Heute</option>
+                <option value="tomorrow">Morgen</option>
+                <option value="week">Diese Woche</option>
                 <option value="month">Dieser Monat</option>
               </Select>
               <Select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} aria-label="Fahrer filtern">

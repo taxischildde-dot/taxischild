@@ -97,3 +97,8 @@
 - [x] Build an employer trip archive for every past and future booking, with search and filters for time period, customer, status, and driver.
 - [x] Give archive cards clear admin actions for editing, assigning/reassigning a driver, and cancelling a trip.
 - [x] Add focused tests and static visual verification for cloud-sync failure feedback, archive controls, reassignment, and alert-sound behavior.
+- [x] Add recurrence settings for patient and school bookings, including weekdays, start/end date, preferred driver, and route details.
+- [x] Generate repeat bookings deterministically from recurrence settings without duplicating existing trips.
+- [ ] Provide an optional future series-management view to pause or delete all still-scheduled occurrences together; current occurrences remain individually editable and cancellable.
+- [x] Add polished quick filters for Heute, Morgen, Diese Woche, Kommende Fahrten, and Alle Buchungen in the employer trip archive.
+- [x] Test recurrence generation, duplicate prevention, next-day filtering, and fast edit/assignment/cancellation actions before release.

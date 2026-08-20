@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import type { PaymentMethod, Trip } from '../../types';
-import { isVehicleAssignedToUser } from '../../types';
+import type { PaymentMethod, Trip, Weekday } from '../../types';
+import { ALL_WEEKDAYS, isVehicleAssignedToUser } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/db';
 import { syncTripToCloud, updateTripInCloud, writeAuditLog } from '../../lib/cloudSync';
@@ -9,6 +9,7 @@ import { toLocalInputValue } from '../../lib/format';
 import { Field, Input, Select, Textarea } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { PAYMENT_METHOD_LABEL } from '../../lib/labels';
+import { hasEquivalentTrip, recurringOccurrenceDates, weekdayForDate } from '../../lib/recurrence';
 
 interface TripFormProps {
   existingTrip?: Trip;
@@ -54,6 +55,9 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
   const [hasReturnTrip, setHasReturnTrip] = useState(false);
   const [returnScheduledAt, setReturnScheduledAt] = useState('');
   const [returnDriverId, setReturnDriverId] = useState('');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatEndDate, setRepeatEndDate] = useState('');
+  const [repeatWeekdays, setRepeatWeekdays] = useState<Weekday[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const suggestionTrips = useMemo(() => {
@@ -86,6 +90,14 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
     const numericPrice = normalizedPrice ? parseFloat(normalizedPrice) : undefined;
     if (normalizedPrice && (numericPrice == null || isNaN(numericPrice) || numericPrice < 0)) {
       setError('Bitte einen gültigen Preis eingeben oder das Feld leer lassen');
+      return;
+    }
+    if (repeatWeekly && hasReturnTrip) {
+      setError('Bitte legen Sie eine Rückfahrt als eigene Serie an. So können Hin- und Rückfahrt separat geplant werden.');
+      return;
+    }
+    if (repeatWeekly && (!repeatEndDate || repeatWeekdays.length === 0)) {
+      setError('Bitte wählen Sie für die Serienbuchung mindestens einen Wochentag und ein Enddatum.');
       return;
     }
     // Fahrer ist nur für den Fahrer selbst verpflichtend — die Geschäftsführung
@@ -153,6 +165,34 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
         createdBy: user.id,
       });
       await syncTripToCloud(returnTrip);
+    }
+
+    if (!isEdit && repeatWeekly) {
+      const occurrences = recurringOccurrenceDates({
+        firstScheduledAt: new Date(scheduledAt),
+        endDate: repeatEndDate,
+        weekdays: repeatWeekdays,
+      });
+      const knownTrips = db.trips.byCompany(company.id);
+      for (const occurrence of occurrences) {
+        if (occurrence.getTime() === new Date(saved.scheduledAt).getTime()) continue;
+        const recurringPayload = { ...payload, scheduledAt: occurrence.toISOString() };
+        if (hasEquivalentTrip(knownTrips, recurringPayload)) continue;
+        const recurringTrip = db.trips.create({
+          ...recurringPayload,
+          notes: notes.trim() ? `Serienbuchung — ${notes.trim()}` : 'Serienbuchung',
+          status: 'scheduled',
+          entrySource: 'central',
+          createdBy: user.id,
+        });
+        const recurringCloudResult = await syncTripToCloud(recurringTrip);
+        if (!recurringCloudResult.ok) {
+          setSaving(false);
+          setError(`Die Serienfahrt am ${occurrence.toLocaleDateString('de-DE')} wurde nicht in der Cloud gespeichert: ${recurringCloudResult.error}`);
+          return;
+        }
+        knownTrips.push(recurringTrip);
+      }
     }
 
     setSaving(false);
@@ -356,6 +396,56 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
                   </Select>
                 </Field>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isEdit && user?.role === 'admin' && (
+        <div className="rounded-2xl border border-asphalt-900/15 bg-asphalt-900/[0.03] p-4">
+          <label className="flex items-center gap-2 text-sm font-extrabold text-ink">
+            <input
+              type="checkbox"
+              checked={repeatWeekly}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setRepeatWeekly(enabled);
+                if (enabled) {
+                  const first = new Date(scheduledAt || Date.now());
+                  setRepeatWeekdays((current) => current.length > 0 ? current : [weekdayForDate(first)]);
+                  if (!repeatEndDate) {
+                    const end = new Date(first);
+                    end.setMonth(end.getMonth() + 1);
+                    setRepeatEndDate(end.toISOString().slice(0, 10));
+                  }
+                }
+              }}
+              className="h-4 w-4 rounded border-cream-400 accent-amber-500"
+            />
+            Wöchentliche Serienbuchung anlegen
+          </label>
+          {repeatWeekly && (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs leading-relaxed text-ink/60">Es werden normal bearbeitbare Einzelbuchungen für die gewählten Wochentage erstellt. Bereits vorhandene gleiche Fahrten werden nicht doppelt angelegt.</p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_WEEKDAYS.map((weekday) => {
+                  const selected = repeatWeekdays.includes(weekday);
+                  const labels: Record<Weekday, string> = { mon: 'Mo', tue: 'Di', wed: 'Mi', thu: 'Do', fri: 'Fr', sat: 'Sa', sun: 'So' };
+                  return (
+                    <button
+                      key={weekday}
+                      type="button"
+                      onClick={() => setRepeatWeekdays((current) => selected ? current.filter((day) => day !== weekday) : [...current, weekday])}
+                      className={`rounded-pill border px-3 py-1.5 text-xs font-extrabold transition ${selected ? 'border-asphalt-900 bg-asphalt-900 text-cream-100' : 'border-cream-400 bg-white text-ink/60'}`}
+                    >
+                      {labels[weekday]}
+                    </button>
+                  );
+                })}
+              </div>
+              <Field label="Serie endet am" required>
+                <Input type="date" value={repeatEndDate} min={scheduledAt.slice(0, 10)} onChange={(e) => setRepeatEndDate(e.target.value)} />
+              </Field>
             </div>
           )}
         </div>
