@@ -140,13 +140,13 @@ function TripCardContent({ trip, driver, vehicle, showDriver, onAdvance, onCance
           {typeof trip.price === 'number' && Number.isFinite(trip.price) ? formatMoney(trip.price, currency) : 'Preis offen'}
         </span>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {onAssign && isUnassigned && status === 'scheduled' && (
+          {onAssign && status === 'scheduled' && (
             <button
               onClick={() => onAssign(trip)}
               className="flex h-9 items-center gap-1.5 rounded-xl bg-asphalt-900 px-3 text-xs font-bold text-cream-100 transition hover:bg-asphalt-800"
             >
               <UsersIcon width={14} height={14} />
-              Fahrer zuweisen
+              {isUnassigned ? 'Fahrer zuweisen' : 'Fahrer ändern'}
             </button>
           )}
           {onEdit && status !== 'completed' && status !== 'cancelled' && (

@@ -15,7 +15,7 @@ describe('notification sound preference', () => {
     expect(notificationSoundEnabled()).toBe(false);
   });
 
-  it('does not throw when audio is unavailable or disabled', () => {
-    expect(() => playNotificationSound()).not.toThrow();
+  it('resolves safely when audio is unavailable or disabled', async () => {
+    await expect(playNotificationSound()).resolves.toBe(false);
   });
 });

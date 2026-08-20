@@ -90,6 +90,29 @@ export async function updateTripInCloud(trip: Trip): Promise<{ ok: true } | { ok
   return { ok: true };
 }
 
+// A driver status transition must update only the operational columns. Sending
+// a full cached trip back to Supabase can include stale billing or address data
+// and cause the update to fail before the new status reaches the employer.
+export async function updateTripOperationalStateInCloud(
+  trip: Pick<Trip, 'id' | 'companyId' | 'status' | 'cancellationReason'>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Supabase ist noch nicht konfiguriert' };
+  const { data, error } = await supabase
+    .from('trips')
+    .update({
+      status: trip.status === 'scheduled' ? 'planned' : trip.status,
+      cancellation_reason: trip.cancellationReason ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', trip.id)
+    .eq('company_id', trip.companyId)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'Die Fahrt wurde nicht gefunden oder darf nicht aktualisiert werden' };
+  return { ok: true };
+}
+
 function mapTrip(row: Row): Trip {
   const status = row.status === 'planned' ? 'scheduled' : row.status === 'ongoing' ? 'ongoing' : row.status;
   return {

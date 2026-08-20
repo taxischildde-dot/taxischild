@@ -14,7 +14,7 @@ import { Modal } from '../components/ui/Modal';
 import { Field, Input } from '../components/ui/Field';
 import { weekdayLabel } from '../lib/format';
 import { notificationPermission, requestNotificationPermission } from '../lib/reminders';
-import { disableNotificationSound, enableNotificationSound, notificationSoundEnabled } from '../lib/notificationSound';
+import { disableNotificationSound, enableNotificationSound, notificationSoundEnabled, playNotificationSound } from '../lib/notificationSound';
 import { BackupIcon, BuildingIcon, EditIcon, LogoutIcon, PlusIcon, SupportIcon, TrashIcon, UsersIcon } from '../components/ui/Icons';
 
 type PendingDriverInvite = {
@@ -284,6 +284,11 @@ export default function SettingsPage() {
               {soundEnabled ? 'Ton ausschalten' : 'Ton aktivieren'}
             </Button>
           </div>
+          {soundEnabled && (
+            <Button type="button" variant="ghost" fullWidth className="mt-2" onClick={() => void playNotificationSound()}>
+              Ton testen
+            </Button>
+          )}
         </Card>
 
         {user?.role === 'admin' && (

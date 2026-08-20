@@ -38,4 +38,11 @@ describe('TripCard ongoing state', () => {
     expect(markup).toContain('Geplant');
     expect(markup).toContain('Preis offen');
   });
+
+  it('offers an admin a clear reassignment action for a planned trip that already has a driver', () => {
+    const plannedTrip = { ...trip, status: 'scheduled' as const };
+    const markup = renderToStaticMarkup(<TripCard trip={plannedTrip} onAssign={() => undefined} />);
+
+    expect(markup).toContain('Fahrer ändern');
+  });
 });

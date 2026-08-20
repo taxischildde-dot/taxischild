@@ -7,7 +7,7 @@
 import type { Company, User, Trip, Vehicle, DailyLog } from '../types';
 import { readAll, writeAll, uid } from './storage';
 import { isSupabaseConfigured, supabase } from './supabase';
-import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud, updateTripInCloud } from './cloudSync';
+import { syncDailyLogToCloud, syncTripToCloud, syncVehicleToCloud, updateTripInCloud, updateTripOperationalStateInCloud } from './cloudSync';
 
 const cloudWarn = (operation: string, error: unknown) => {
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : null;
@@ -166,6 +166,32 @@ export const db = {
     updateForCompany: (companyId: string, id: string, patch: Partial<Trip>): Trip | undefined => {
       const current = db.trips.getForCompany(companyId, id);
       return current ? db.trips.update(id, patch) : undefined;
+    },
+    updateOperationalForCompany: async (
+      companyId: string,
+      id: string,
+      patch: Pick<Partial<Trip>, 'status' | 'cancellationReason' | 'cancelledAt'>,
+    ): Promise<{ ok: true; trip: Trip } | { ok: false; error: string }> => {
+      const current = db.trips.getForCompany(companyId, id);
+      if (!current) return { ok: false, error: 'Die Fahrt wurde nicht gefunden.' };
+
+      const updated = { ...current, ...patch };
+      // Keep the acting driver's view responsive, but roll it back when the
+      // cloud rejects the mutation so the visible state always matches the
+      // employer dashboard and the actual dispatch record.
+      const all = db.trips.all();
+      const index = all.findIndex((trip) => trip.id === id);
+      if (index === -1) return { ok: false, error: 'Die Fahrt wurde nicht gefunden.' };
+      all[index] = updated;
+      writeAll(KEYS.trips, all);
+
+      const result = await updateTripOperationalStateInCloud(updated);
+      if (!result.ok) {
+        all[index] = current;
+        writeAll(KEYS.trips, all);
+        return result;
+      }
+      return { ok: true, trip: updated };
     },
     remove: (id: string): void => {
       writeAll(KEYS.trips, db.trips.all().filter((t) => t.id !== id));

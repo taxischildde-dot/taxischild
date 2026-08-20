@@ -25,13 +25,13 @@ export function useTripActions({
     return actor.role === 'admin' || trip.driverId === actor.id;
   };
 
-  const advance = (trip: Trip) => {
+  const advance = async (trip: Trip) => {
     if (!canManage(trip)) return;
     const next = flow[trip.status];
     if (!next) return;
     try {
-      const updated = db.trips.updateForCompany(company!.id, trip.id, { status: next });
-      if (!updated) throw new Error('Die Fahrt konnte nicht gefunden werden.');
+      const result = await db.trips.updateOperationalForCompany(company!.id, trip.id, { status: next });
+      if (!result.ok) throw new Error(result.error);
       onChange();
     } catch (error) {
       console.error('[TaxiSchild] Trip status update failed', error);
@@ -39,7 +39,7 @@ export function useTripActions({
     }
   };
 
-  const cancel = (trip: Trip) => {
+  const cancel = async (trip: Trip) => {
     if (!canManage(trip)) return;
     const reason = window.prompt('Bitte Stornierungsgrund eingeben:');
     if (reason === null) return;
@@ -49,12 +49,12 @@ export function useTripActions({
       return;
     }
     try {
-      const updated = db.trips.updateForCompany(company!.id, trip.id, {
+      const result = await db.trips.updateOperationalForCompany(company!.id, trip.id, {
         status: 'cancelled',
         cancellationReason,
         cancelledAt: new Date().toISOString(),
       });
-      if (!updated) throw new Error('Die Fahrt konnte nicht gefunden werden.');
+      if (!result.ok) throw new Error(result.error);
       onChange();
     } catch (error) {
       console.error('[TaxiSchild] Trip cancellation failed', error);

@@ -171,21 +171,24 @@ export default function DashboardPage() {
 
         <div>
           <div className="mb-2.5 flex items-center justify-between">
-            <h2 className="font-display text-base font-extrabold text-ink">Aktive Fahrten</h2>
+            <div>
+              <h2 className="font-display text-base font-extrabold text-ink">Heutige Fahrten</h2>
+              <p className="text-xs text-ink/45">Fahrten für heute ({new Date().toLocaleDateString('de-DE')})</p>
+            </div>
             <button onClick={() => navigate('/trips')} className="text-sm font-bold text-amber-600">
-              Alle anzeigen
+              Alle Fahrten &amp; Archiv anzeigen
             </button>
           </div>
 
-          {activeTrips.length === 0 ? (
+          {todayTrips.length === 0 ? (
             <EmptyState
               icon={<TripIcon width={36} height={36} />}
-              title="Aktuell keine aktiven Fahrten"
-              description="Tippen Sie auf „Neue Fahrt“, um die erste Buchung anzulegen"
+              title="Keine Fahrten für heute geplant"
+              description="Tippen Sie auf „Neue Fahrt“, um eine Buchung für heute anzulegen"
             />
           ) : (
             <div className="space-y-3">
-              {activeTrips.map((trip) => (
+              {todayTrips.map((trip) => (
                 <TripCard
                   key={trip.id}
                   trip={trip}

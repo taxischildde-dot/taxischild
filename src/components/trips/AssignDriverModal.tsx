@@ -23,6 +23,10 @@ export function AssignDriverModal({
   );
   const [driverId, setDriverId] = useState('');
 
+  React.useEffect(() => {
+    setDriverId(trip?.driverId ?? '');
+  }, [trip?.id, trip?.driverId]);
+
   if (!trip) return null;
 
   const handleAssign = () => {
@@ -37,7 +41,7 @@ export function AssignDriverModal({
   };
 
   return (
-    <Modal open={!!trip} onClose={onClose} title="Fahrer zuweisen">
+    <Modal open={!!trip} onClose={onClose} title={trip.driverId ? 'Fahrer ändern' : 'Fahrer zuweisen'}>
       <div className="space-y-4">
         <p className="text-sm text-ink/60">
           Fahrt für <span className="font-bold text-ink">{trip.customerName}</span> ({trip.pickupAddress} →{' '}

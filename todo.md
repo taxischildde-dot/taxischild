@@ -85,6 +85,15 @@
 - [x] Isolate trip card rendering and status label branches so ongoing status display never throws a React render error.
 - [ ] Add primary vehicle assignment selection when creating or updating drivers and insulate driver update actions from unhandled crashes.
 - [x] Identify and eliminate the shared profile and entity mutation path that lets asynchronous Supabase failures escape into the global error screen.
-- [ ] Deliver assigned-trip and trip-change updates to drivers automatically without manual page refresh, using Realtime with a bounded fallback refresh.
+- [x] Deliver assigned-trip and trip-change updates to drivers automatically without manual page refresh, using Realtime with a bounded fallback refresh.
 - [x] Complete a documented DSGVO, EU data-residency, backup, scalability, and cost readiness review before paid customer onboarding.
-- [ ] Validate TaxiSchild product-market fit with a controlled pilot, measurable adoption criteria, and a documented German competitor comparison before scaling sales.
+- [x] Validate TaxiSchild product-market fit with a controlled pilot, measurable adoption criteria, and a documented German competitor comparison before scaling sales.
+- [ ] Add a searchable saved-customer picker to quick trip creation from a driver card, autofill basic customer details and default pickup, and keep per-trip destination edits independent.
+- [x] Add an optional browser audio alert helper with mute/unmute control for new driver trips and updates.
+- [x] Diagnose and fix why driver Start/Complete actions remain local and do not update the employer dashboard without a manual refresh.
+- [x] Make operational trip-status updates await a confirmed Supabase response and display an actionable cloud-sync failure message.
+- [ ] Verify the live Supabase Realtime publication, role permissions, and client subscription flow for company trip updates.
+- [x] Repair driver alert sound activation, add an explicit test-sound control, and validate sound after receiving a trip assignment or change.
+- [x] Build an employer trip archive for every past and future booking, with search and filters for time period, customer, status, and driver.
+- [x] Give archive cards clear admin actions for editing, assigning/reassigning a driver, and cancelling a trip.
+- [x] Add focused tests and static visual verification for cloud-sync failure feedback, archive controls, reassignment, and alert-sound behavior.

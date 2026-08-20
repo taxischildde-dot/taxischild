@@ -83,6 +83,27 @@ describe('local company data boundaries', () => {
     expect(db.trips.updateForCompany(company.id, trip.id, { status: 'ongoing' })?.status).toBe('ongoing');
   });
 
+  it('reverts an operational status change when the cloud cannot confirm it', async () => {
+    const company = db.companies.create('Sync Taxi');
+    const trip = db.trips.create({
+      companyId: company.id,
+      customerName: 'Frau Cloud',
+      pickupAddress: 'Bahnhof',
+      destinationAddress: 'Klinik',
+      scheduledAt: '2026-08-16T08:00:00.000Z',
+      currency: 'EUR',
+      status: 'scheduled',
+      paymentMethod: 'invoice',
+      entrySource: 'central',
+      createdBy: 'admin-1',
+    });
+
+    const result = await db.trips.updateOperationalForCompany(company.id, trip.id, { status: 'ongoing' });
+
+    expect(result.ok).toBe(false);
+    expect(db.trips.getForCompany(company.id, trip.id)?.status).toBe('scheduled');
+  });
+
   it('stores a municipality-funded booking without requiring the final price', () => {
     const company = db.companies.create('SchulTaxi Nord');
     const trip = db.trips.create({

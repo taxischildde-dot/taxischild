@@ -187,12 +187,18 @@ export function AppLayout() {
     };
 
     void refreshCompanyData();
-    const interval = window.setInterval(() => void refreshCompanyData(), 30000);
+    const interval = window.setInterval(() => void refreshCompanyData(), 10000);
     const channel = supabase
       .channel(`company-cache-${companyId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `company_id=eq.${companyId}` }, () => void refreshCompanyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `company_id=eq.${companyId}` }, () => {
+        void refreshCompanyData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: `company_id=eq.${companyId}` }, () => {
+        void refreshCompanyData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `company_id=eq.${companyId}` }, () => {
+        void refreshCompanyData();
+      })
       .subscribe();
 
     return () => {

@@ -51,6 +51,9 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
     existingTrip?.vehicleId ?? (user?.role === 'driver' && availableVehicles.length === 1 ? availableVehicles[0].id : ''),
   );
   const [notes, setNotes] = useState(existingTrip?.notes ?? '');
+  const [hasReturnTrip, setHasReturnTrip] = useState(false);
+  const [returnScheduledAt, setReturnScheduledAt] = useState('');
+  const [returnDriverId, setReturnDriverId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const suggestionTrips = useMemo(() => {
@@ -60,6 +63,16 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
   const customerSuggestions = [...new Set(suggestionTrips.map((trip) => trip.customerName).filter(Boolean))].slice(0, 100);
   const pickupSuggestions = [...new Set(suggestionTrips.map((trip) => trip.pickupAddress).filter(Boolean))].slice(0, 100);
   const destinationSuggestions = [...new Set(suggestionTrips.map((trip) => trip.destinationAddress).filter(Boolean))].slice(0, 100);
+
+  const handleCustomerChange = (name: string) => {
+    setCustomerName(name);
+    const matched = suggestionTrips.find((t) => t.customerName.toLowerCase() === name.trim().toLowerCase());
+    if (matched) {
+      setCustomerPhone(matched.customerPhone || '');
+      setPickupAddress(matched.pickupAddress || '');
+      setDestinationAddress(matched.destinationAddress || '');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,11 +124,38 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
       });
     }
     const cloudResult = isEdit ? await updateTripInCloud(saved) : await syncTripToCloud(saved);
-    setSaving(false);
     if (!cloudResult.ok) {
+      setSaving(false);
       setError(`Die Fahrt wurde lokal gespeichert, aber nicht in der Cloud: ${cloudResult.error}`);
       return;
     }
+
+    if (!isEdit && hasReturnTrip && returnScheduledAt) {
+      const returnPayload = {
+        companyId: company.id,
+        driverId: user.role === 'driver' ? user.id : (returnDriverId || finalDriverId),
+        vehicleId: vehicleId || undefined,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim() || undefined,
+        pickupAddress: destinationAddress.trim(), // Rückfahrt: Ziel wird Abholort
+        destinationAddress: pickupAddress.trim(),  // Rückfahrt: Abholort wird Ziel
+        destinationCode: destinationCode.trim() || undefined,
+        scheduledAt: new Date(returnScheduledAt).toISOString(),
+        price: numericPrice,
+        currency: DEFAULT_CURRENCY,
+        paymentMethod: paymentMethod,
+        notes: notes.trim() ? `Rückfahrt zu ${saved.id} — ${notes.trim()}` : `Rückfahrt zu ${saved.id}`,
+      };
+      const returnTrip = db.trips.create({
+        ...returnPayload,
+        status: 'scheduled',
+        entrySource: user.role === 'driver' ? 'driver_phone' : 'central',
+        createdBy: user.id,
+      });
+      await syncTripToCloud(returnTrip);
+    }
+
+    setSaving(false);
     void writeAuditLog({
       companyId: company.id,
       actorId: user.id,
@@ -130,10 +170,10 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Kundenname" required>
+        <Field label="Kundenname &amp; Stammkunden-Auswahl" required hint="Wählen Sie aus der Liste oder tippen Sie einen neuen Namen">
           <Input
             value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
+            onChange={(e) => handleCustomerChange(e.target.value)}
             placeholder="z. B. Hans Weber"
             list="taxischild-customer-suggestions"
             autoFocus
@@ -276,6 +316,50 @@ export function TripForm({ existingTrip, defaultDriverId, onSaved, onCancel }: T
       <Field label="Notizen" hint="optional">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Weitere Details..." />
       </Field>
+
+      {!isEdit && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/60 p-4">
+          <label className="flex items-center gap-2 text-sm font-extrabold text-ink">
+            <input
+              type="checkbox"
+              checked={hasReturnTrip}
+              onChange={(e) => {
+                setHasReturnTrip(e.target.checked);
+                if (e.target.checked && !returnScheduledAt) {
+                  const d = new Date(scheduledAt || Date.now());
+                  d.setHours(d.getHours() + 2);
+                  setReturnScheduledAt(toLocalInputValue(d));
+                }
+              }}
+              className="h-4 w-4 rounded border-cream-400 accent-amber-500"
+            />
+            Rückfahrt automatisch einplanen (gleicher Kunde)
+          </label>
+          {hasReturnTrip && (
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Rückfahrt-Zeitpunkt" required>
+                <Input
+                  type="datetime-local"
+                  value={returnScheduledAt}
+                  onChange={(e) => setReturnScheduledAt(e.target.value)}
+                />
+              </Field>
+              {user?.role === 'admin' && (
+                <Field label="Fahrer für Rückfahrt" hint="optional">
+                  <Select value={returnDriverId} onChange={(e) => setReturnDriverId(e.target.value)}>
+                    <option value="">Wie Hinfahrt / Nicht zugewiesen</option>
+                    {companyDrivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{error}</p>}
 

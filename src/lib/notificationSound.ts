@@ -26,9 +26,17 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
-function beep(): void {
+async function beep(): Promise<boolean> {
   const context = getAudioContext();
-  if (!context || context.state !== 'running') return;
+  if (!context) return false;
+  if (context.state !== 'running') {
+    try {
+      await context.resume();
+    } catch {
+      return false;
+    }
+  }
+  if (context.state !== 'running') return false;
 
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -43,6 +51,7 @@ function beep(): void {
   gain.connect(context.destination);
   oscillator.start(now);
   oscillator.stop(now + 0.23);
+  return true;
 }
 
 export function notificationSoundEnabled(): boolean {
@@ -56,8 +65,7 @@ export async function enableNotificationSound(): Promise<boolean> {
   try {
     await context.resume();
     writeEnabled(true);
-    beep();
-    return true;
+    return await beep();
   } catch (error) {
     console.warn('[TaxiSchild] Notification sound could not be enabled', error);
     return false;
@@ -68,11 +76,12 @@ export function disableNotificationSound(): void {
   writeEnabled(false);
 }
 
-export function playNotificationSound(): void {
-  if (!notificationSoundEnabled()) return;
+export async function playNotificationSound(): Promise<boolean> {
+  if (!notificationSoundEnabled()) return false;
   try {
-    beep();
+    return await beep();
   } catch (error) {
     console.warn('[TaxiSchild] Notification sound unavailable', error);
+    return false;
   }
 }
